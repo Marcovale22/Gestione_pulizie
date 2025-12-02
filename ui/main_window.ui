@@ -229,7 +229,7 @@ padding: 5px;
           <number>0</number>
          </property>
          <widget class="QWidget" name="pageClienti">
-          <widget class="QWidget" name="">
+          <widget class="QWidget" name="layoutWidget">
            <property name="geometry">
             <rect>
              <x>10</x>
@@ -293,7 +293,7 @@ QPushButton:pressed {
                 </widget>
                </item>
                <item>
-                <widget class="QPushButton" name="btnClienteModifca">
+                <widget class="QPushButton" name="btnClienteModifica">
                  <property name="text">
                   <string>Modifica</string>
                  </property>

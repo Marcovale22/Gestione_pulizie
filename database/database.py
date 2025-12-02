@@ -18,7 +18,7 @@ def get_connection():
 
 
 def init_db():
-    """Crea le tabelle se non esistono."""
+    """Crea le tabelle se non esistono e inserisce dati di esempio."""
     conn = get_connection()
     cur = conn.cursor()
 
@@ -36,11 +36,14 @@ def init_db():
 
     conn.commit()
 
+    # Se la tabella è vuota, inserisco alcuni clienti di esempio
     cur.execute("SELECT COUNT(*) AS c FROM clienti;")
     if cur.fetchone()["c"] == 0:
-        cur.execute("""
-            UPDATE INTO clienti (nome, cognome, telefono, indirizzo, email)
-            VALUES ('Mario', 'Rossi', '3331234567', 'Via Roma 1', 'mario.rossi@example.com')
-            Where nome = Mario;
-        """)
+        cur.executemany("""
+            INSERT INTO clienti (nome, cognome, telefono, indirizzo, email)
+            VALUES (?, ?, ?, ?, ?);
+        """, [
+            ("Luigi",  "Bianchi", "3405618282", "Via Roma 2", "luigi.bianchi@example.com"),
+            ("Anna",   "Verdi",   "3209876543", "Via Milano 10", "anna.verdi@example.com"),
+        ])
         conn.commit()
