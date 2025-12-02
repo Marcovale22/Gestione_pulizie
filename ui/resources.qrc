@@ -1,0 +1,5 @@
+<RCC>
+  <qresource prefix="/assets">
+    <file>logo_brilance.png</file>
+  </qresource>
+</RCC>
