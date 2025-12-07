@@ -36,14 +36,4 @@ def init_db():
 
     conn.commit()
 
-    # Se la tabella è vuota, inserisco alcuni clienti di esempio
-    cur.execute("SELECT COUNT(*) AS c FROM clienti;")
-    if cur.fetchone()["c"] == 0:
-        cur.executemany("""
-            INSERT INTO clienti (nome, cognome, telefono, indirizzo, email)
-            VALUES (?, ?, ?, ?, ?);
-        """, [
-            ("Luigi",  "Bianchi", "3405618282", "Via Roma 2", "luigi.bianchi@example.com"),
-            ("Anna",   "Verdi",   "3209876543", "Via Milano 10", "anna.verdi@example.com"),
-        ])
-        conn.commit()
+
