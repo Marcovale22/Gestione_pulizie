@@ -2,9 +2,11 @@ import os
 from PyQt6.QtWidgets import QMainWindow
 from PyQt6.uic import loadUi
 from PyQt6.QtGui import QPixmap
-from windows.section_clienti import ClientiSection
 
-
+from windows.dipendenti_section import DipendentiSection
+from windows.clienti_section import ClientiSection
+from windows.servizi_section import ServiziSection
+from windows.interventi_section import InterventiSection
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -42,7 +44,9 @@ class MainWindow(QMainWindow):
 
         # Sezioni
         self.clienti_section = ClientiSection(self)
-
+        self.dipendenti_section = DipendentiSection(self)
+        self.servizi_section = ServiziSection(self)
+        self.interventi_section = InterventiSection(self)
 
         # Imposto la pagina iniziale e il pulsante selezionato
         self.select_section(0, self.btnAreaClienti)

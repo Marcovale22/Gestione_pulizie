@@ -2,7 +2,9 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QMessageBox,
+    QAbstractItemView
 )
+
 
 from models.cliente import Cliente
 from database.database import get_connection
@@ -27,6 +29,7 @@ class ClientiSection:
     def setup_table(self):
         table = self.ui.tableClienti
 
+
         # 6 colonne: ID nascosto + 5 campi visibili
         table.setColumnCount(6)
         table.setHorizontalHeaderLabels([
@@ -46,7 +49,8 @@ class ClientiSection:
         table.setWordWrap(False)
         table.setHorizontalScrollMode(table.ScrollMode.ScrollPerPixel)
         table.setVerticalScrollMode(table.ScrollMode.ScrollPerPixel)
-
+        table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
     # ---------------------------------------------------------
     #  SIGNALS
     # ---------------------------------------------------------
