@@ -1,13 +1,15 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QComboBox,
     QDateEdit, QTimeEdit, QDoubleSpinBox, QLineEdit,
-    QDialogButtonBox, QMessageBox
+    QDialogButtonBox, QMessageBox, QListWidget, QListWidgetItem, QAbstractItemView
 )
-from PyQt6.QtCore import QDate, QTime
+from PyQt6.QtCore import QDate, QTime, Qt
 
 from models.cliente import Cliente
 from models.dipendenti import Dipendente
 from models.servizi import Servizio
+
+
 
 
 class InterventoDialog(QDialog):
@@ -20,7 +22,9 @@ class InterventoDialog(QDialog):
         # --- campi ---
         self.comboCliente = QComboBox()
         self.comboServizio = QComboBox()
-        self.comboDipendente = QComboBox()
+        self.listDipendenti = QListWidget()
+        self.listDipendenti.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
+
         self.comboStato = QComboBox()
         self.comboStato.addItems(["Programmato", "Completato", "Annullato"])
 
@@ -43,7 +47,7 @@ class InterventoDialog(QDialog):
         form = QFormLayout()
         form.addRow("Cliente:", self.comboCliente)
         form.addRow("Servizio:", self.comboServizio)
-        form.addRow("Dipendente:", self.comboDipendente)
+        form.addRow("Dipendenti:", self.listDipendenti)
         form.addRow("Data:", self.dateData)
         form.addRow("Ora inizio:", self.timeOra)
         form.addRow("Durata (ore):", self.spinDurata)
@@ -83,11 +87,12 @@ class InterventoDialog(QDialog):
             self.comboServizio.addItem(s.nome, s.id)
 
         # Dipendenti
-        self.comboDipendente.clear()
-        self.comboDipendente.addItem("Non assegnato", None)
+        self.listDipendenti.clear()
         dipendenti = Dipendente.all()
         for d in dipendenti:
-            self.comboDipendente.addItem(f"{d.cognome} {d.nome}", d.id)
+            item = QListWidgetItem(f"{d.cognome} {d.nome}")
+            item.setData(Qt.ItemDataRole.UserRole, d.id)
+            self.listDipendenti.addItem(item)
 
     def _select_by_data(self, combo: QComboBox, value):
         for i in range(combo.count()):
@@ -99,7 +104,7 @@ class InterventoDialog(QDialog):
         # x contiene id (cliente_id, servizio_id, dipendente_id, ...)
         self._select_by_data(self.comboCliente, x.get("cliente_id"))
         self._select_by_data(self.comboServizio, x.get("servizio_id"))
-        self._select_by_data(self.comboDipendente, x.get("dipendente_id"))
+
 
         # data/ora
         try:
@@ -128,6 +133,18 @@ class InterventoDialog(QDialog):
 
         self.editNote.setText(x.get("note", "") or "")
 
+        ids = x.get("dipendente_ids")
+        if ids is None:
+            old = x.get("dipendente_id")
+            ids = [] if old is None else [old]
+
+        ids = set(ids)
+
+        for i in range(self.listDipendenti.count()):
+            item = self.listDipendenti.item(i)
+            did = item.data(Qt.ItemDataRole.UserRole)
+            item.setSelected(did in ids)
+
     def _on_accept(self):
         if self.comboCliente.count() == 0:
             QMessageBox.warning(self, "Dati mancanti", "Inserisci prima almeno un cliente.")
@@ -136,16 +153,22 @@ class InterventoDialog(QDialog):
             QMessageBox.warning(self, "Dati mancanti", "Inserisci prima almeno un servizio.")
             return
 
+        dip_ids = []
+        for item in self.listDipendenti.selectedItems():
+            dip_ids.append(item.data(Qt.ItemDataRole.UserRole))
+
+
         self._dati = {
             "cliente_id": self.comboCliente.currentData(),
             "servizio_id": self.comboServizio.currentData(),
-            "dipendente_id": self.comboDipendente.currentData(),
             "data": self.dateData.date().toString("yyyy-MM-dd"),
             "ora_inizio": self.timeOra.time().toString("HH:mm"),
             "durata_ore": float(self.spinDurata.value()) if self.spinDurata.value() > 0 else None,
             "stato": self.comboStato.currentText(),
             "note": self.editNote.text().strip() or None,
+            "dipendente_ids": dip_ids
         }
+
         self.accept()
 
     def get_dati(self) -> dict:

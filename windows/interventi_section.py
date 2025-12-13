@@ -1,10 +1,17 @@
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHeaderView, QAbstractItemView, QTableWidgetItem, QMessageBox
 
 from models.intervento import Intervento
-from models.cliente import Cliente
-from models.dipendenti import Dipendente
-from models.servizi import Servizio
 from dialogs.intervento_dialog import InterventoDialog
+from database.repositories.interventi_repo import (
+    get_interventi_misti,
+    get_intervento_by_id,
+    get_intervento_dipendenti_ids,
+    create_intervento,
+    update_intervento,
+    delete_intervento
+)
+
 
 
 class InterventiSection:
@@ -20,12 +27,14 @@ class InterventiSection:
     def setup_table(self):
         table = self.ui.tableInterventi
 
-        table.setColumnCount(8)
+        table.setColumnCount(10)
         table.setHorizontalHeaderLabels([
-            "ID", "Cliente", "Servizio", "Dipendente",
-            "Data", "Ora", "Durata", "Stato"
+            "ID_REF", "TIPO", "Cliente", "Servizio", "Dipendenti",
+            "Data", "Ora", "Durata", "Giorni", "Stato"
         ])
-        table.setColumnHidden(0, True)
+
+        table.setColumnHidden(0, True)  # ID_REF
+        table.setColumnHidden(1, True)  # TIPO
 
         header = table.horizontalHeader()
         header.setStretchLastSection(True)
@@ -40,9 +49,9 @@ class InterventiSection:
 
         table.setStyleSheet(self.ui.tableClienti.styleSheet())
 
-        table.setColumnWidth(1, 200)  # Cliente
-        table.setColumnWidth(2, 160)  # Servizio
-        table.setColumnWidth(3, 180)  # Dipendente
+        table.setColumnWidth(2, 200)  # Cliente
+        table.setColumnWidth(3, 160)  # Servizio
+        table.setColumnWidth(4, 220)  # Dipendenti
 
     def setup_signals(self):
         self.ui.btnInterventiAggiungi.clicked.connect(self.aggiungi_intervento)
@@ -51,29 +60,45 @@ class InterventiSection:
 
         self.ui.tableInterventi.itemSelectionChanged.connect(self.on_selection_changed)
 
+    def format_giorni(csv_nums: str) -> str:
+        if not csv_nums or str(csv_nums).strip() in ("-", ""):
+            return "-"
+        MAP = {1: "Lun", 2: "Mar", 3: "Mer", 4: "Gio", 5: "Ven", 6: "Sab", 7: "Dom"}
+        parts = [p.strip() for p in str(csv_nums).split(",")]
+        nums = sorted({int(p) for p in parts if p.isdigit() and int(p) in MAP})
+        return ", ".join(MAP[n] for n in nums) if nums else "-"
+
     def load_interventi(self):
         table = self.ui.tableInterventi
-        interventi = Intervento.all()
+        rows = get_interventi_misti()  # sqlite3.Row
 
-        # mappe id -> nome visuale
-        clienti_map = {c.id: f"{c.cognome} {c.nome}" for c in Cliente.all()}
-        servizi_map = {s.id: s.nome for s in Servizio.all()}
-        dip_map = {d.id: f"{d.cognome} {d.nome}" for d in Dipendente.all()}
+        table.setRowCount(len(rows))
 
-        table.setRowCount(len(interventi))
+        for r, row in enumerate(rows):
+            tipo = row["tipo"]
+            giorni = row["giorni"]
+            if tipo == "RICORRENTE":
+                giorni = self.format_giorni(giorni)
+            else:
+                giorni = "-"
 
-        for row_idx, it in enumerate(interventi):
-            table.setItem(row_idx, 0, QTableWidgetItem(str(it.id)))
-            table.setItem(row_idx, 1, QTableWidgetItem(clienti_map.get(it.cliente_id, f"ID {it.cliente_id}")))
-            table.setItem(row_idx, 2, QTableWidgetItem(servizi_map.get(it.servizio_id, f"ID {it.servizio_id}")))
+            values = [
+                row["id_ref"],  # 0 hidden
+                row["tipo"],  # 1 hidden
+                row["cliente"],  # 2
+                row["servizio"],  # 3
+                row["dipendenti"],  # 4
+                row["data"],  # 5
+                row["ora"],  # 6
+                row["durata"],  # 7
+                giorni,  # 8
+                row["stato"],  # 9
+            ]
 
-            dip_txt = "Non assegnato" if it.dipendente_id is None else dip_map.get(it.dipendente_id, f"ID {it.dipendente_id}")
-            table.setItem(row_idx, 3, QTableWidgetItem(dip_txt))
-
-            table.setItem(row_idx, 4, QTableWidgetItem(it.data))
-            table.setItem(row_idx, 5, QTableWidgetItem(it.ora_inizio))
-            table.setItem(row_idx, 6, QTableWidgetItem("" if it.durata_ore is None else str(it.durata_ore)))
-            table.setItem(row_idx, 7, QTableWidgetItem(it.stato))
+            for c, v in enumerate(values):
+                item = QTableWidgetItem("" if v is None else str(v))
+                item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                table.setItem(r, c, item)
 
         table.clearSelection()
         self.on_selection_changed()
@@ -86,7 +111,7 @@ class InterventiSection:
         dati = dialog.get_dati()
 
         try:
-            Intervento.create(dati)
+            create_intervento(dati)
             self.load_interventi()
         except Exception as e:
             import traceback
@@ -98,69 +123,114 @@ class InterventiSection:
         row = table.currentRow()
 
         if row < 0:
-            QMessageBox.warning(self.ui, "Modifica intervento", "Seleziona prima un intervento da modificare.")
+            QMessageBox.warning(self.ui, "Modifica", "Seleziona prima una riga da modificare.")
             return
 
-        intervento_id = int(table.item(row, 0).text())
+        id_ref = int(table.item(row, 0).text())  # ID_REF (nascosta)
+        tipo = table.item(row, 1).text()  # TIPO (nascosta)
 
-        # qui dobbiamo recuperare i valori originali dal DB (più sicuro)
-        # per semplicità: prendiamo tutto da Intervento.all e cerchiamo l'id
-        it = next((x for x in Intervento.all() if x.id == intervento_id), None)
-        if it is None:
-            QMessageBox.warning(self.ui, "Errore", "Intervento non trovato.")
+        # --- CASO 1: INTERVENTO SINGOLO (istanza reale) ---
+        if tipo == "SINGOLO":
+            intervento_id = id_ref
+
+            # meglio: recupero by id (se non lo hai ancora, va bene anche all())
+            it = get_intervento_by_id(intervento_id)
+            if it is None:
+                QMessageBox.warning(self.ui, "Errore", "Intervento non trovato.")
+                return
+
+            dip_ids = get_intervento_dipendenti_ids(intervento_id)
+
+            if it is None:
+                QMessageBox.warning(self.ui, "Errore", "Intervento non trovato.")
+                return
+
+            dati_correnti = {
+                "cliente_id": it["cliente_id"],
+                "servizio_id": it["servizio_id"],
+                "data": it["data"],
+                "ora_inizio": it["ora_inizio"],
+                "durata_ore": it["durata_ore"],
+                "stato": it["stato"],
+                "note": it["note"],
+                "dipendente_ids": dip_ids
+            }
+
+            dialog = InterventoDialog(parent=None, intervento=dati_correnti)
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+
+            nuovi_dati = dialog.get_dati()
+
+            try:
+                update_intervento(intervento_id, nuovi_dati)
+                self.load_interventi()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                QMessageBox.critical(self.ui, "Errore", f"Errore durante la modifica dell'intervento:\n{e}")
             return
 
-        dati_correnti = {
-            "cliente_id": it.cliente_id,
-            "servizio_id": it.servizio_id,
-            "dipendente_id": it.dipendente_id,
-            "data": it.data,
-            "ora_inizio": it.ora_inizio,
-            "durata_ore": it.durata_ore,
-            "stato": it.stato,
-            "note": it.note,
-        }
-
-        dialog = InterventoDialog(parent=None, intervento=dati_correnti)
-        if dialog.exec() != dialog.DialogCode.Accepted:
+        # --- CASO 2: RICORRENTE ---
+        elif tipo == "RICORRENTE":
+            ricorrente_id = id_ref
+            QMessageBox.information(
+                self.ui,
+                "Modifica ricorrente",
+                f"Qui apriremo il dialog del ricorrente (ID={ricorrente_id})."
+            )
             return
 
-        nuovi_dati = dialog.get_dati()
-
-        try:
-            Intervento.update(intervento_id, nuovi_dati)
-            self.load_interventi()
-        except Exception as e:
-            import traceback
-            traceback.print_exc()
-            QMessageBox.critical(self.ui, "Errore", f"Errore durante la modifica dell'intervento:\n{e}")
+        else:
+            QMessageBox.warning(self.ui, "Errore", f"Tipo non riconosciuto: {tipo}")
+            return
 
     def elimina_intervento(self):
         table = self.ui.tableInterventi
         row = table.currentRow()
 
         if row < 0:
-            QMessageBox.warning(self.ui, "Elimina intervento", "Seleziona prima un intervento da eliminare.")
+            QMessageBox.warning(self.ui, "Elimina", "Seleziona prima una riga da eliminare.")
             return
 
-        intervento_id = int(table.item(row, 0).text())
+        id_ref = int(table.item(row, 0).text())  # ID_REF (nascosta)
+        tipo = table.item(row, 1).text()  # TIPO (nascosta)
+
+        msg = "Sei sicuro di voler eliminare questo elemento?"
+        if tipo == "RICORRENTE":
+            msg = "Sei sicuro di voler eliminare questo ricorrente? (non eliminerà automaticamente gli interventi già generati)"
 
         risposta = QMessageBox.question(
             self.ui,
             "Conferma eliminazione",
-            "Sei sicuro di voler eliminare questo intervento?",
+            msg,
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
         )
         if risposta != QMessageBox.StandardButton.Yes:
             return
 
         try:
-            Intervento.delete(intervento_id)
-            self.load_interventi()
+            if tipo == "SINGOLO":
+                delete_intervento(id_ref)  # ✅ qui usi id_ref
+
+            elif tipo == "RICORRENTE":
+                QMessageBox.information(
+                    self.ui,
+                    "Elimina ricorrente",
+                    f"Qui elimineremo il ricorrente (ID={id_ref})."
+                )
+                return
+
+            else:
+                QMessageBox.warning(self.ui, "Errore", f"Tipo non riconosciuto: {tipo}")
+                return
+
+            self.load_interventi()  # ✅ una sola volta
+
         except Exception as e:
             import traceback
             traceback.print_exc()
-            QMessageBox.critical(self.ui, "Errore", f"Errore durante l'eliminazione dell'intervento:\n{e}")
+            QMessageBox.critical(self.ui, "Errore", f"Errore durante l'eliminazione:\n{e}")
 
     def on_selection_changed(self):
         ha_selezione = self.ui.tableInterventi.currentRow() >= 0
