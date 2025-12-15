@@ -5,6 +5,7 @@ def get_interventi_misti():
     cur = conn.cursor()
 
     sql = """
+    -- SINGOLI (istanze reali)
     SELECT
       i.id AS id_ref,
       'SINGOLO' AS tipo,
@@ -15,7 +16,8 @@ def get_interventi_misti():
       i.ora_inizio AS ora,
       COALESCE(i.durata_ore, '') AS durata,
       '-' AS giorni,
-      i.stato AS stato
+      i.stato AS stato,
+      '-' AS periodo
     FROM interventi i
     JOIN clienti c ON c.id = i.cliente_id
     JOIN servizi s ON s.id = i.servizio_id
@@ -25,6 +27,7 @@ def get_interventi_misti():
 
     UNION ALL
 
+    -- RICORRENTI (regole)
     SELECT
       r.id AS id_ref,
       'RICORRENTE' AS tipo,
@@ -35,7 +38,8 @@ def get_interventi_misti():
       r.ora_inizio AS ora,
       COALESCE(r.durata_ore, '') AS durata,
       COALESCE(GROUP_CONCAT(DISTINCT rg.giorno_settimana), '-') AS giorni,
-      CASE WHEN r.attivo=1 THEN 'Attivo' ELSE 'Sospeso' END AS stato
+      CASE WHEN r.attivo=1 THEN 'Attivo' ELSE 'Sospeso' END AS stato,
+      (COALESCE(r.data_inizio,'-') || ' → ' || COALESCE(r.data_fine,'-')) AS periodo
     FROM interventi_ricorrenti r
     JOIN clienti c ON c.id = r.cliente_id
     JOIN servizi s ON s.id = r.servizio_id

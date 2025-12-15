@@ -1,7 +1,6 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHeaderView, QAbstractItemView, QTableWidgetItem, QMessageBox
 
-from models.intervento import Intervento
 from dialogs.intervento_dialog import InterventoDialog
 from database.repositories.interventi_repo import (
     get_interventi_misti,
@@ -11,7 +10,11 @@ from database.repositories.interventi_repo import (
     update_intervento,
     delete_intervento
 )
-
+from dialogs.ricorrente_dialog import RicorrenteDialog
+from database.repositories.ricorrenti_repo import (
+    get_ricorrente_by_id, get_ricorrente_giorni, get_ricorrente_dipendenti_ids,
+    create_ricorrente, update_ricorrente, delete_ricorrente, rinnova_ricorrenti_scaduti
+)
 
 
 class InterventiSection:
@@ -19,6 +22,7 @@ class InterventiSection:
         self.ui = ui
         self.setup_table()
         self.setup_signals()
+        rinnova_ricorrenti_scaduti()
         self.load_interventi()
 
         self.ui.btnInterventiModifica.setEnabled(False)
@@ -27,14 +31,13 @@ class InterventiSection:
     def setup_table(self):
         table = self.ui.tableInterventi
 
-        table.setColumnCount(10)
+        table.setColumnCount(11)
         table.setHorizontalHeaderLabels([
             "ID_REF", "TIPO", "Cliente", "Servizio", "Dipendenti",
-            "Data", "Ora", "Durata", "Giorni", "Stato"
+            "Data", "Ora", "Durata", "Giorni", "Stato", "Periodo"
         ])
-
-        table.setColumnHidden(0, True)  # ID_REF
-        table.setColumnHidden(1, True)  # TIPO
+        table.setColumnHidden(0, True)
+        table.setColumnHidden(1, True)
 
         header = table.horizontalHeader()
         header.setStretchLastSection(True)
@@ -52,7 +55,7 @@ class InterventiSection:
         table.setColumnWidth(2, 200)  # Cliente
         table.setColumnWidth(3, 160)  # Servizio
         table.setColumnWidth(4, 220)  # Dipendenti
-
+        table.setColumnWidth(10, 220)  # Periodo (se è la colonna 10)
     def setup_signals(self):
         self.ui.btnInterventiAggiungi.clicked.connect(self.aggiungi_intervento)
         self.ui.btnInterventiModifica.clicked.connect(self.modifica_intervento)
@@ -60,13 +63,14 @@ class InterventiSection:
 
         self.ui.tableInterventi.itemSelectionChanged.connect(self.on_selection_changed)
 
-    def format_giorni(csv_nums: str) -> str:
+    def format_giorni(self, csv_nums: str) -> str:
         if not csv_nums or str(csv_nums).strip() in ("-", ""):
             return "-"
-        MAP = {1: "Lun", 2: "Mar", 3: "Mer", 4: "Gio", 5: "Ven", 6: "Sab", 7: "Dom"}
+
+        GIORNI_MAP = {1: "Lun", 2: "Mar", 3: "Mer", 4: "Gio", 5: "Ven", 6: "Sab", 7: "Dom"}
         parts = [p.strip() for p in str(csv_nums).split(",")]
-        nums = sorted({int(p) for p in parts if p.isdigit() and int(p) in MAP})
-        return ", ".join(MAP[n] for n in nums) if nums else "-"
+        nums = sorted({int(p) for p in parts if p.isdigit() and int(p) in GIORNI_MAP})
+        return ", ".join(GIORNI_MAP[n] for n in nums) if nums else "-"
 
     def load_interventi(self):
         table = self.ui.tableInterventi
@@ -83,16 +87,17 @@ class InterventiSection:
                 giorni = "-"
 
             values = [
-                row["id_ref"],  # 0 hidden
-                row["tipo"],  # 1 hidden
-                row["cliente"],  # 2
-                row["servizio"],  # 3
-                row["dipendenti"],  # 4
-                row["data"],  # 5
-                row["ora"],  # 6
-                row["durata"],  # 7
-                giorni,  # 8
-                row["stato"],  # 9
+                row["id_ref"],
+                row["tipo"],
+                row["cliente"],
+                row["servizio"],
+                row["dipendenti"],
+                row["data"],
+                row["ora"],
+                row["durata"],
+                giorni,
+                row["stato"],
+                row["periodo"],  # ✅ nuova
             ]
 
             for c, v in enumerate(values):
@@ -104,6 +109,32 @@ class InterventiSection:
         self.on_selection_changed()
 
     def aggiungi_intervento(self):
+        scelta = QMessageBox.question(
+            self.ui,
+            "Aggiungi",
+            "Vuoi aggiungere un intervento singolo?\n(Sì = Singolo, No = Ricorrente)",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if scelta == QMessageBox.StandardButton.No:
+            # RICORRENTE (solo regola, nessuna istanza generata)
+            dialog = RicorrenteDialog(parent=None)
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+
+            dati = dialog.get_dati()
+
+            try:
+                create_ricorrente(dati)
+                self.load_interventi()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                QMessageBox.critical(self.ui, "Errore", f"Errore durante il salvataggio del ricorrente:\n{e}")
+
+            return
+
+        # SINGOLO
         dialog = InterventoDialog(parent=None)
         if dialog.exec() != dialog.DialogCode.Accepted:
             return
@@ -129,21 +160,16 @@ class InterventiSection:
         id_ref = int(table.item(row, 0).text())  # ID_REF (nascosta)
         tipo = table.item(row, 1).text()  # TIPO (nascosta)
 
-        # --- CASO 1: INTERVENTO SINGOLO (istanza reale) ---
+        # --- CASO 1: SINGOLO ---
         if tipo == "SINGOLO":
             intervento_id = id_ref
 
-            # meglio: recupero by id (se non lo hai ancora, va bene anche all())
             it = get_intervento_by_id(intervento_id)
             if it is None:
                 QMessageBox.warning(self.ui, "Errore", "Intervento non trovato.")
                 return
 
             dip_ids = get_intervento_dipendenti_ids(intervento_id)
-
-            if it is None:
-                QMessageBox.warning(self.ui, "Errore", "Intervento non trovato.")
-                return
 
             dati_correnti = {
                 "cliente_id": it["cliente_id"],
@@ -174,15 +200,36 @@ class InterventiSection:
         # --- CASO 2: RICORRENTE ---
         elif tipo == "RICORRENTE":
             ricorrente_id = id_ref
-            QMessageBox.information(
-                self.ui,
-                "Modifica ricorrente",
-                f"Qui apriremo il dialog del ricorrente (ID={ricorrente_id})."
-            )
-            return
 
-        else:
-            QMessageBox.warning(self.ui, "Errore", f"Tipo non riconosciuto: {tipo}")
+            r = get_ricorrente_by_id(ricorrente_id)
+            if r is None:
+                QMessageBox.warning(self.ui, "Errore", "Ricorrente non trovato.")
+                return
+
+            dati_correnti = {
+                "cliente_id": r["cliente_id"],
+                "servizio_id": r["servizio_id"],
+                "ora_inizio": r["ora_inizio"],
+                "durata_ore": r["durata_ore"],
+                "note": r["note"],
+                "attivo": r["attivo"],
+                "giorni_settimana": get_ricorrente_giorni(ricorrente_id),
+                "dipendente_ids": get_ricorrente_dipendenti_ids(ricorrente_id),
+            }
+
+            dialog = RicorrenteDialog(parent=None, ricorrente=dati_correnti)
+            if dialog.exec() != dialog.DialogCode.Accepted:
+                return
+
+            nuovi = dialog.get_dati()
+
+            try:
+                update_ricorrente(ricorrente_id, nuovi)
+                self.load_interventi()
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                QMessageBox.critical(self.ui, "Errore", f"Errore durante la modifica del ricorrente:\n{e}")
             return
 
     def elimina_intervento(self):
@@ -211,21 +258,16 @@ class InterventiSection:
 
         try:
             if tipo == "SINGOLO":
-                delete_intervento(id_ref)  # ✅ qui usi id_ref
+                delete_intervento(id_ref)
 
             elif tipo == "RICORRENTE":
-                QMessageBox.information(
-                    self.ui,
-                    "Elimina ricorrente",
-                    f"Qui elimineremo il ricorrente (ID={id_ref})."
-                )
-                return
+                delete_ricorrente(id_ref)  # ✅ qui
 
             else:
                 QMessageBox.warning(self.ui, "Errore", f"Tipo non riconosciuto: {tipo}")
                 return
 
-            self.load_interventi()  # ✅ una sola volta
+            self.load_interventi()
 
         except Exception as e:
             import traceback

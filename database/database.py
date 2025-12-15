@@ -127,6 +127,15 @@ def init_db():
         );
     """)
 
+    # --- aggiunta colonne data_inizio / data_fine (MIGRAZIONE SICURA) ---
+    cur.execute("PRAGMA table_info(interventi_ricorrenti);")
+    cols = [row[1] for row in cur.fetchall()]
+
+    if "data_inizio" not in cols:
+        cur.execute("ALTER TABLE interventi_ricorrenti ADD COLUMN data_inizio TEXT;")
+
+    if "data_fine" not in cols:
+        cur.execute("ALTER TABLE interventi_ricorrenti ADD COLUMN data_fine TEXT;")
 
     conn.commit()
 
