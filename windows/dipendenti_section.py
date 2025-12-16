@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import QHeaderView, QAbstractItemView,QTableWidgetItem, QMessageBox
 from models.dipendenti import Dipendente
 from dialogs.dipendente_dialog import DipendenteDialog
+from datetime import datetime, date
 
 class DipendentiSection:
     def __init__(self, ui):
@@ -43,7 +44,26 @@ class DipendentiSection:
 
         self.ui.tableDipendenti.itemSelectionChanged.connect(self.on_selection_changed)
 
-# ---------------------------------------------------------
+    def format_data(self, value) -> str:
+        if value is None:
+            return ""
+
+        if isinstance(value, (date, datetime)):
+            return value.strftime("%d-%m-%Y")
+
+        s = str(value).strip()
+        if not s or s == "-":
+            return ""
+
+        # se arriva "YYYY-MM-DD HH:MM:SS" prendo solo la parte data
+        s = s[:10]
+
+        try:
+            return datetime.strptime(s, "%Y-%m-%d").strftime("%d-%m-%Y")
+        except ValueError:
+            return str(value)  # fallback
+
+    # ---------------------------------------------------------
     #  LOAD DIPENDENTI
     # ---------------------------------------------------------
     def load_dipendenti(self):
@@ -64,7 +84,8 @@ class DipendentiSection:
             table.setItem(row_idx, 5, QTableWidgetItem(d.mansione or ""))
             table.setItem(row_idx, 6, QTableWidgetItem(str(d.ore_settimanali) if d.ore_settimanali is not None else ""))
             table.setItem(row_idx, 7, QTableWidgetItem(str(d.stipendio) if d.stipendio is not None else ""))
-            table.setItem(row_idx, 8, QTableWidgetItem(d.scadenza_contratto or ""))
+            table.setItem(row_idx, 8, QTableWidgetItem(self.format_data(d.scadenza_contratto)))
+
 
         table.clearSelection()
         self.on_selection_changed()

@@ -29,7 +29,7 @@
    <property name="styleSheet">
     <string notr="true">background-color: Black;</string>
    </property>
-   <layout class="QGridLayout" name="gridLayout">
+   <layout class="QHBoxLayout" name="horizontalLayout">
     <property name="leftMargin">
      <number>200</number>
     </property>
@@ -42,7 +42,7 @@
     <property name="bottomMargin">
      <number>100</number>
     </property>
-    <item row="0" column="0">
+    <item>
      <widget class="QFrame" name="mainPannel">
       <property name="sizePolicy">
        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
@@ -222,11 +222,16 @@ padding: 5px;
            <height>0</height>
           </size>
          </property>
+         <property name="font">
+          <font>
+           <pointsize>16</pointsize>
+          </font>
+         </property>
          <property name="styleSheet">
           <string notr="true">background-color: #e5e5e5;</string>
          </property>
          <property name="currentIndex">
-          <number>3</number>
+          <number>4</number>
          </property>
          <widget class="QWidget" name="pageClienti">
           <layout class="QVBoxLayout" name="verticalLayout_3">
@@ -744,22 +749,221 @@ QPushButton:disabled {
           </layout>
          </widget>
          <widget class="QWidget" name="pageCalendario">
-          <widget class="QLabel" name="label_10">
-           <property name="geometry">
-            <rect>
-             <x>240</x>
-             <y>220</y>
-             <width>91</width>
-             <height>16</height>
-            </rect>
+          <property name="styleSheet">
+           <string notr="true">/* ---------------- CARD ---------------- */
+#cardCalendario {
+    background: white;
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 18px;
+}
+
+/* ---------------- TITOLO ---------------- */
+#lblCalendarioTitle {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+/* ---------------- NAV BAR (MESE / ANNO) ---------------- */
+QCalendarWidget QWidget#qt_calendar_navigationbar {
+    background: white;
+    border-bottom: 1px solid rgba(0,0,0,0.10);
+    padding: 6px;
+}
+
+/* Pulsanti frecce + mese */
+QCalendarWidget QToolButton {
+    background: white;
+    border: 1px solid rgba(0,0,0,0.15);
+    border-radius: 10px;
+    padding: 6px 10px;
+    font-weight: 600;
+    color: #1f2937;
+}
+
+QCalendarWidget QToolButton:hover {
+    background: #eaf2ff;
+}
+
+/* Menu mese/anno */
+QCalendarWidget QMenu {
+    background: white;
+    border: 1px solid rgba(0,0,0,0.12);
+}
+
+/* ---------------- HEADER GIORNI ---------------- */
+QCalendarWidget QTableView QHeaderView::section {
+    background: #f1f5f9;
+    color: #111827;          /* NERO */
+    font-weight: 700;
+    padding: 8px 0;
+    border: none;
+}
+
+/* Sabato / Domenica */
+QCalendarWidget QTableView QHeaderView::section:last {
+    color: #dc2626;          /* ROSSO */
+}
+/* ---------------- GIORNI ---------------- */
+QCalendarWidget QAbstractItemView {
+    background: white;
+    alternate-background-color: #f5f8ff;
+    selection-background-color: #2196F3;
+    selection-color: white;
+    border: none;
+    outline: 0;
+    font-size: 13px;
+}
+
+QCalendarWidget QMenu {
+    background: white;
+    color: #111827;
+    border: 1px solid rgba(0,0,0,0.12);
+}
+
+QCalendarWidget QMenu::item {
+    color: #111827;
+    padding: 6px 10px;
+}
+
+QCalendarWidget QMenu::item:selected {
+    background: #eaf2ff;
+}
+</string>
+          </property>
+          <layout class="QVBoxLayout" name="verticalLayout_2">
+           <property name="spacing">
+            <number>20</number>
            </property>
-           <property name="styleSheet">
-            <string notr="true">color:black;</string>
-           </property>
-           <property name="text">
-            <string>pageCalendario</string>
-           </property>
-          </widget>
+           <item>
+            <widget class="QLabel" name="lblCalendarioTitle">
+             <property name="font">
+              <font>
+               <pointsize>-1</pointsize>
+               <bold>true</bold>
+              </font>
+             </property>
+             <property name="styleSheet">
+              <string notr="true">QLabel{
+	color: #2196F3;
+	font-size:3rem;
+}</string>
+             </property>
+             <property name="text">
+              <string>Calendario</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QCalendarWidget" name="tableGiorno">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="minimumSize">
+              <size>
+               <width>0</width>
+               <height>0</height>
+              </size>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+         <widget class="QWidget" name="page">
+          <layout class="QVBoxLayout" name="verticalLayout_7">
+           <item>
+            <widget class="QWidget" name="widget" native="true">
+             <property name="styleSheet">
+              <string notr="true">QPushButton {
+    background-color: white;
+    color: #2196F3;
+    border: 2px solid #2196F3;
+    border-radius: 18px;
+    padding: 6px 18px;
+    font-weight: bold;
+}
+
+QPushButton:hover {
+    background-color: #E3F2FD;
+}
+
+QPushButton:pressed {
+    background-color: #2196F3;
+    color: white;
+}</string>
+             </property>
+             <layout class="QHBoxLayout" name="horizontalLayout_3">
+              <item>
+               <widget class="QPushButton" name="btnGiornoBack">
+                <property name="styleSheet">
+                 <string notr="true">QPushButton{
+	color:black;
+}</string>
+                </property>
+                <property name="text">
+                 <string>&lt;= Back</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QLabel" name="lblDettaglioTitle">
+                <property name="font">
+                 <font>
+                  <pointsize>16</pointsize>
+                 </font>
+                </property>
+                <property name="styleSheet">
+                 <string notr="true">QLabel{
+	color: #2196F3;
+	font-size:3rem;
+}
+
+</string>
+                </property>
+                <property name="text">
+                 <string>dettaglio page</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer_2">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </widget>
+           </item>
+           <item>
+            <widget class="QTableWidget" name="tableWidget"/>
+           </item>
+          </layout>
          </widget>
         </widget>
        </item>

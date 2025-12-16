@@ -7,6 +7,8 @@ from windows.dipendenti_section import DipendentiSection
 from windows.clienti_section import ClientiSection
 from windows.servizi_section import ServiziSection
 from windows.interventi_section import InterventiSection
+from windows.calendario_section import CalendarioSection
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -47,6 +49,7 @@ class MainWindow(QMainWindow):
         self.dipendenti_section = DipendentiSection(self)
         self.servizi_section = ServiziSection(self)
         self.interventi_section = InterventiSection(self)
+        self.calendario_section = CalendarioSection(self)
 
         # Imposto la pagina iniziale e il pulsante selezionato
         self.select_section(0, self.btnAreaClienti)
@@ -61,4 +64,8 @@ class MainWindow(QMainWindow):
         self.uncheck_all()
         btn.setChecked(True)
         self.stackedContent.setCurrentIndex(index)
+
+        if index == 4:
+            self.calendario_section.refresh_calendar()
+
 

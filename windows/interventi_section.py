@@ -1,5 +1,8 @@
+import re
+
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHeaderView, QAbstractItemView, QTableWidgetItem, QMessageBox
+from datetime import datetime, date
 
 from dialogs.intervento_dialog import InterventoDialog
 from database.repositories.interventi_repo import (
@@ -72,6 +75,43 @@ class InterventiSection:
         nums = sorted({int(p) for p in parts if p.isdigit() and int(p) in GIORNI_MAP})
         return ", ".join(GIORNI_MAP[n] for n in nums) if nums else "-"
 
+    from datetime import datetime, date
+
+    def format_data(self, value) -> str:
+        if value is None:
+            return "-"
+
+        # se è già un date/datetime
+        if isinstance(value, (date, datetime)):
+            return value.strftime("%d-%m-%Y")
+
+        s = str(value).strip()
+        if not s or s == "-":
+            return "-"
+
+        # prende solo la parte data se arriva "YYYY-MM-DD HH:MM:SS"
+        s = s[:10]
+
+        try:
+            return datetime.strptime(s, "%Y-%m-%d").strftime("%d-%m-%Y")
+        except ValueError:
+            return str(value)  # fallback
+
+    def format_periodo(self, periodo: str) -> str:
+        if not periodo:
+            return "-"
+
+        s = str(periodo).strip()
+        if not s or s == "-":
+            return "-"
+
+        # Estrae 2 date in formato YYYY-MM-DD da qualunque stringa
+        dates = re.findall(r"\d{4}-\d{2}-\d{2}", s)
+        if len(dates) >= 2:
+            return f"{self.format_data(dates[0])} → {self.format_data(dates[1])}"
+
+        return s  # fallback (se già formattato o formato diverso)
+
     def load_interventi(self):
         table = self.ui.tableInterventi
         rows = get_interventi_misti()  # sqlite3.Row
@@ -80,11 +120,15 @@ class InterventiSection:
 
         for r, row in enumerate(rows):
             tipo = row["tipo"]
-            giorni = row["giorni"]
+
             if tipo == "RICORRENTE":
-                giorni = self.format_giorni(giorni)
+                giorni = self.format_giorni(row["giorni"])
+                data_fmt = "-"
+                periodo_fmt = self.format_periodo(row["periodo"])
             else:
                 giorni = "-"
+                data_fmt = self.format_data(row["data"])
+                periodo_fmt = "-"
 
             values = [
                 row["id_ref"],
@@ -92,12 +136,12 @@ class InterventiSection:
                 row["cliente"],
                 row["servizio"],
                 row["dipendenti"],
-                row["data"],
+                data_fmt,
                 row["ora"],
                 row["durata"],
                 giorni,
                 row["stato"],
-                row["periodo"],  # ✅ nuova
+                periodo_fmt,
             ]
 
             for c, v in enumerate(values):
