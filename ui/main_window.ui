@@ -858,7 +858,7 @@ QCalendarWidget QMenu::item:selected {
             </widget>
            </item>
            <item>
-            <widget class="QCalendarWidget" name="tableGiorno">
+            <widget class="BrillanceCalendar" name="tableGiorno">
              <property name="sizePolicy">
               <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
                <horstretch>0</horstretch>
@@ -984,6 +984,13 @@ QPushButton:pressed {
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
+ <customwidgets>
+  <customwidget>
+   <class>BrillanceCalendar</class>
+   <extends>QCalendarWidget</extends>
+   <header>brillancecalendar.h</header>
+  </customwidget>
+ </customwidgets>
  <resources>
   <include location="resources.qrc"/>
  </resources>

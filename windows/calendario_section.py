@@ -15,6 +15,7 @@ class CalendarioSection(QObject):
         self.setup_signals()
 
         self.ui.stackedContent.setCurrentWidget(self.ui.pageCalendario)
+        self.selected_date = QDate.currentDate()
 
         # applica formati iniziali (oggi + fuori mese grigi)
         self.refresh_calendar_formats()
@@ -88,12 +89,16 @@ class CalendarioSection(QObject):
                     continue
 
                 add_event(qd, {
+                    "id_ref": r["id_ref"],
                     "tipo": "SINGOLO",
                     "ora": r["ora"],
                     "cliente": r["cliente"],
                     "servizio": r["servizio"],
+                    "durata": r["durata"],
                     "stato": r["stato"],
+                    "dipendenti": r["dipendenti"],
                 })
+
                 continue
 
             # ---------------- RICORRENTE ----------------
@@ -143,11 +148,14 @@ class CalendarioSection(QObject):
 
                     if d.dayOfWeek() in weekdays:
                         add_event(d, {
+                            "id_ref": r["id_ref"],
                             "tipo": "RICORRENTE",
                             "ora": r["ora"],
                             "cliente": r["cliente"],
                             "servizio": r["servizio"],
+                            "durata": r["durata"],
                             "stato": r["stato"],
+                            "dipendenti": r["dipendenti"],
                         })
 
         # ordina eventi per ora
@@ -358,12 +366,21 @@ class CalendarioSection(QObject):
 
     # ---------------- TABELLA DETTAGLIO GIORNO ----------------
     def setup_table(self):
-        table = self.ui.tableWidget  # QTableWidget
+        table = self.ui.tableWidget
 
-        table.setColumnCount(7)
-        table.setHorizontalHeaderLabels(["ID_REF", "TIPO", "Ora", "Cliente", "Servizio", "Durata", "Stato"])
-        table.setColumnHidden(0, True)
-        table.setColumnHidden(1, True)
+        table.setColumnCount(8)
+        table.setHorizontalHeaderLabels([
+            "ID_REF",
+            "Tipo",
+            "Ora",
+            "Cliente",
+            "Servizio",
+            "Dipendenti",
+            "Durata",
+            "Stato"
+        ])
+
+        table.setColumnHidden(0, True)  # ID_REF
 
         header = table.horizontalHeader()
         header.setStretchLastSection(True)
@@ -378,6 +395,13 @@ class CalendarioSection(QObject):
 
         table.setStyleSheet(self.ui.tableClienti.styleSheet())
 
+        # larghezze consigliate
+        table.setColumnWidth(1, 110)  # Tipo
+        table.setColumnWidth(2, 80)  # Ora
+        table.setColumnWidth(3, 200)  # Cliente
+        table.setColumnWidth(4, 160)  # Servizio
+        table.setColumnWidth(5, 220)  # Dipendenti
+
     # ---------------- SEGNALI ----------------
     def setup_signals(self):
         self.ui.tableGiorno.clicked.connect(self.open_day_details)
@@ -386,11 +410,12 @@ class CalendarioSection(QObject):
 
     # ---------------- NAVIGAZIONE ----------------
     def open_day_details(self, qdate: QDate):
-        giorno_iso = qdate.toString("yyyy-MM-dd")
         giorno_label = qdate.toString("dd-MM-yyyy")
-
         self.ui.lblDettaglioTitle.setText(f"Interventi del {giorno_label}")
-        self.load_giorno(giorno_iso)
+
+        # ✅ ricrea la cache e poi carica
+        self.build_events_cache_for_month()
+        self.load_giorno(qdate)
 
         self.ui.stackedContent.setCurrentWidget(self.ui.page)
 
@@ -398,23 +423,26 @@ class CalendarioSection(QObject):
         self.ui.stackedContent.setCurrentWidget(self.ui.pageCalendario)
         self.refresh_calendar()
     # ---------------- DATI ----------------
-    def load_giorno(self, giorno_iso: str):
+    def load_giorno(self, qdate: QDate):
         table = self.ui.tableWidget
-        rows = get_interventi_misti()
 
-        filtrati = [
-            r for r in rows
-            if r["tipo"] == "SINGOLO" and (r["data"] or "").strip() == giorno_iso
-        ]
+        # ✅ prende SINGOLI + RICORRENTI dalla cache
+        eventi = self.events_by_date.get(qdate, [])
 
-        table.setRowCount(len(filtrati))
+        table.setRowCount(len(eventi))
 
-        for r, row in enumerate(filtrati):
+        for r, e in enumerate(eventi):
             values = [
-                row["id_ref"], row["tipo"],
-                row["ora"], row["cliente"],
-                row["servizio"], row["durata"], row["stato"]
+                e.get("id_ref", ""),
+                e.get("tipo", ""),
+                e.get("ora", ""),
+                e.get("cliente", ""),
+                e.get("servizio", ""),
+                e.get("dipendenti", ""),
+                e.get("durata", ""),
+                e.get("stato", "")
             ]
+
             for c, v in enumerate(values):
                 item = QTableWidgetItem("" if v is None else str(v))
                 item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
