@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QLineEdit,
-    QDoubleSpinBox, QDialogButtonBox, QMessageBox
+    QDoubleSpinBox, QDialogButtonBox, QMessageBox, QLabel
 )
 
 
@@ -17,9 +17,15 @@ class ServizioDialog(QDialog):
         self.double_prezzo.setDecimals(2)
 
         form = QFormLayout()
-        form.addRow("Nome:", self.edit_nome)
+
+        # ✅ asterisco sui campi obbligatori
+        form.addRow("Nome <font color='red'>*</font>:", self.edit_nome)
         form.addRow("Descrizione:", self.edit_descrizione)
-        form.addRow("Prezzo orario (€):", self.double_prezzo)
+        form.addRow("Prezzo mensile (€) <font color='red'>*</font>:", self.double_prezzo)
+
+        # ✅ legenda in fondo
+        lbl_obbl = QLabel("<font color='red'>*</font> Campo obbligatorio")
+        lbl_obbl.setStyleSheet("font-size: 11px;")
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
@@ -30,6 +36,7 @@ class ServizioDialog(QDialog):
 
         layout = QVBoxLayout()
         layout.addLayout(form)
+        layout.addWidget(lbl_obbl)   # ✅ sotto il form
         layout.addWidget(buttons)
         self.setLayout(layout)
 
@@ -46,7 +53,7 @@ class ServizioDialog(QDialog):
         self.edit_descrizione.setText(servizio.get("descrizione", ""))
 
         try:
-            self.double_prezzo.setValue(float(servizio.get("prezzo_orario") or 0.0))
+            self.double_prezzo.setValue(float(servizio.get("prezzo_mensile") or 0.0))
         except:
             self.double_prezzo.setValue(0.0)
 
@@ -56,10 +63,15 @@ class ServizioDialog(QDialog):
             QMessageBox.warning(self, "Dati mancanti", "Il nome del servizio è obbligatorio.")
             return
 
+        prezzo = float(self.double_prezzo.value())
+        if prezzo <= 0:
+            QMessageBox.warning(self, "Dati mancanti", "Il prezzo mensile è obbligatorio e deve essere > 0.")
+            return
+
         self._dati = {
             "nome": nome,
             "descrizione": self.edit_descrizione.text().strip() or None,
-            "prezzo_orario": float(self.double_prezzo.value()) if self.double_prezzo.value() > 0 else None
+            "prezzo_mensile": prezzo
         }
         self.accept()
 

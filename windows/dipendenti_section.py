@@ -1,4 +1,6 @@
 from PyQt6.QtWidgets import QHeaderView, QAbstractItemView,QTableWidgetItem, QMessageBox
+
+from database.database import get_connection
 from models.dipendenti import Dipendente
 from dialogs.dipendente_dialog import DipendenteDialog
 from datetime import datetime, date
@@ -31,6 +33,7 @@ class DipendentiSection:
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table.setShowGrid(True)
         table.setWordWrap(False)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
         # stesso stile grafico della tabella clienti
         table.setStyleSheet(self.ui.tableClienti.styleSheet())
@@ -90,6 +93,9 @@ class DipendentiSection:
         table.clearSelection()
         self.on_selection_changed()
 
+    def _norm(self, s: str) -> str:
+        return " ".join(s.strip().split()).lower()
+
     # ---------------------------------------------------------
     #  AGGIUNGI DIPENDENTE
     # ---------------------------------------------------------
@@ -100,17 +106,68 @@ class DipendentiSection:
 
         dati = dialog.get_dati()
 
+        # normalizzo nome/cognome (tolgo doppi spazi)
+        dati["nome"] = " ".join(dati["nome"].strip().split())
+        dati["cognome"] = " ".join(dati["cognome"].strip().split())
+
+        # obbligatori
+        if not dati["nome"] or not dati["cognome"]:
+            QMessageBox.warning(self.ui, "Dati mancanti", "Nome e cognome sono obbligatori.")
+            return
+
+        if not dati["stipendio"]:
+            QMessageBox.warning(self.ui, "Dati mancanti", "Lo stipendio è obbligatorio.")
+            return
+
+        if not dati["scadenza_contratto"]:
+            QMessageBox.warning(self.ui, "Dati mancanti", "La scadenza del contratto è obbligatoria.")
+            return
+
+        # stipendio: numero > 0
+        try:
+            stipendio = float(str(dati["stipendio"]).replace(",", "."))
+            if stipendio <= 0:
+                raise ValueError
+            dati["stipendio"] = stipendio
+        except ValueError:
+            QMessageBox.warning(self.ui, "Dato non valido", "Inserisci uno stipendio valido (> 0).")
+            return
+
+        # ore settimanali: se inserite devono essere int > 0
+        if dati.get("ore_settimanali"):
+            try:
+                ore = int(str(dati["ore_settimanali"]).strip())
+                if ore <= 0:
+                    raise ValueError
+                dati["ore_settimanali"] = ore
+            except ValueError:
+                QMessageBox.warning(self.ui, "Dato non valido", "Ore settimanali deve essere un intero > 0.")
+                return
+        else:
+            dati["ore_settimanali"] = None
+
+        # duplicati (robusto)
+        conn = get_connection()
+        cur = conn.cursor()
+        nome_n = self._norm(dati["nome"])
+        cognome_n = self._norm(dati["cognome"])
+        cur.execute(
+            "SELECT 1 FROM dipendenti WHERE lower(trim(nome)) = ? AND lower(trim(cognome)) = ? LIMIT 1",
+            (nome_n, cognome_n)
+        )
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Dipendente esistente",
+                                "Esiste già un dipendente con lo stesso nome e cognome.")
+            return
+
         try:
             Dipendente.create(dati)
             self.load_dipendenti()
         except Exception as e:
             import traceback
             traceback.print_exc()
-            QMessageBox.critical(
-                self.ui,  # o None se preferisci
-                "Errore",
-                f"Errore durante il salvataggio del dipendente:\n{e}"
-            )
+            QMessageBox.critical(self.ui, "Errore", f"Errore durante il salvataggio del dipendente:\n{e}")
+
     # ---------------------------------------------------------
     #  MODIFICA DIPENDENTE
     # ---------------------------------------------------------
@@ -143,11 +200,69 @@ class DipendentiSection:
         if dialog.exec() != dialog.DialogCode.Accepted:
             return  # l'utente ha annullato
 
+
         nuovi_dati = dialog.get_dati()
+
+        # normalizzo
+        nuovi_dati["nome"] = " ".join(nuovi_dati["nome"].strip().split())
+        nuovi_dati["cognome"] = " ".join(nuovi_dati["cognome"].strip().split())
+
+        # obbligatori
+        if not nuovi_dati["nome"] or not nuovi_dati["cognome"]:
+            QMessageBox.warning(self.ui, "Dati mancanti", "Nome e cognome sono obbligatori.")
+            return
+
+        if not nuovi_dati["stipendio"]:
+            QMessageBox.warning(self.ui, "Dati mancanti", "Lo stipendio è obbligatorio.")
+            return
+
+        if not nuovi_dati["scadenza_contratto"]:
+            QMessageBox.warning(self.ui, "Dati mancanti", "La scadenza del contratto è obbligatoria.")
+            return
+
+        # stipendio: numero > 0
+        try:
+            stipendio = float(str(nuovi_dati["stipendio"]).replace(",", "."))
+            if stipendio <= 0:
+                raise ValueError
+            nuovi_dati["stipendio"] = stipendio
+        except ValueError:
+            QMessageBox.warning(self.ui, "Dato non valido", "Inserisci uno stipendio valido (> 0).")
+            return
+
+        # ore settimanali: se inserite devono essere int > 0
+        if nuovi_dati.get("ore_settimanali"):
+            try:
+                ore = int(str(nuovi_dati["ore_settimanali"]).strip())
+                if ore <= 0:
+                    raise ValueError
+                nuovi_dati["ore_settimanali"] = ore
+            except ValueError:
+                QMessageBox.warning(self.ui, "Dato non valido", "Ore settimanali deve essere un intero > 0.")
+                return
+        else:
+            nuovi_dati["ore_settimanali"] = None
+
+        # duplicati (escludo me stesso)
+        conn = get_connection()
+        cur = conn.cursor()
+        nome_n = self._norm(nuovi_dati["nome"])
+        cognome_n = self._norm(nuovi_dati["cognome"])
+        cur.execute(
+            "SELECT 1 FROM dipendenti WHERE lower(trim(nome)) = ? AND lower(trim(cognome)) = ? AND id != ? LIMIT 1",
+            (nome_n, cognome_n, dipendente_id)
+        )
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Dipendente esistente",
+                                "Esiste già un dipendente con lo stesso nome e cognome.")
+            return
 
         try:
             Dipendente.update(dipendente_id, nuovi_dati)
             self.load_dipendenti()
+
+            if hasattr(self.ui, "interventi_section"):
+                self.ui.interventi_section.load_interventi()
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -173,6 +288,21 @@ class DipendentiSection:
             return
 
         dipendente_id = int(table.item(row, 0).text())
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        cur.execute("SELECT 1 FROM interventi_dipendenti WHERE dipendente_id = ? LIMIT 1", (dipendente_id,))
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Impossibile eliminare",
+                                "Non puoi eliminare il dipendente perché è assegnato ad almeno un intervento.")
+            return
+
+        cur.execute("SELECT 1 FROM ricorrenti_dipendenti WHERE dipendente_id = ? LIMIT 1", (dipendente_id,))
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Impossibile eliminare",
+                                "Non puoi eliminare il dipendente perché è assegnato ad almeno un intervento ricorrente.")
+            return
 
         risposta = QMessageBox.question(
             self.ui,

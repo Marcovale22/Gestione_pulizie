@@ -1,4 +1,6 @@
 from PyQt6.QtWidgets import QHeaderView, QAbstractItemView, QTableWidgetItem, QMessageBox
+
+from database.database import get_connection
 from models.servizi import Servizio
 from dialogs.servizio_dialog import ServizioDialog
 
@@ -15,7 +17,7 @@ class ServiziSection:
 
         table.setColumnCount(4)
         table.setHorizontalHeaderLabels([
-            "ID", "Nome", "Descrizione", "Prezzo orario (€)"
+            "ID", "Nome", "Descrizione", "Prezzo mensile (€)"
         ])
         table.setColumnHidden(0, True)
 
@@ -29,6 +31,7 @@ class ServiziSection:
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table.setShowGrid(True)
         table.setWordWrap(False)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
         # stesso stile della tabella clienti
         table.setStyleSheet(self.ui.tableClienti.styleSheet())
@@ -53,10 +56,13 @@ class ServiziSection:
             table.setItem(row_idx, 0, QTableWidgetItem(str(s.id)))
             table.setItem(row_idx, 1, QTableWidgetItem(s.nome))
             table.setItem(row_idx, 2, QTableWidgetItem(s.descrizione or ""))
-            table.setItem(row_idx, 3, QTableWidgetItem("" if s.prezzo_orario is None else f"{s.prezzo_orario:.2f}"))
+            table.setItem(row_idx, 3, QTableWidgetItem("" if s.prezzo_mensile is None else f"{s.prezzo_mensile:.2f}"))
 
         table.clearSelection()
         self.on_selection_changed()
+
+    def _norm(self, s: str) -> str:
+        return " ".join(s.strip().split()).lower()
 
     def aggiungi_servizio(self):
         dialog = ServizioDialog(parent=None)
@@ -64,6 +70,41 @@ class ServiziSection:
             return
 
         dati = dialog.get_dati()
+
+        # normalizzo nome (tolgo doppi spazi)
+        dati["nome"] = " ".join(dati["nome"].strip().split())
+
+        # 1) obbligatorio
+        if not dati["nome"]:
+            QMessageBox.warning(self.ui, "Dati mancanti", "Il nome del servizio è obbligatorio.")
+            return
+
+        # 2) prezzo mensile obbligatorio e valido
+        if not dati.get("prezzo_mensile"):
+            QMessageBox.warning(self.ui, "Dati mancanti", "Il prezzo mensile è obbligatorio.")
+            return
+
+        try:
+            prezzo = float(str(dati["prezzo_mensile"]).replace(",", "."))
+            if prezzo <= 0:
+                raise ValueError
+            dati["prezzo_mensile"] = prezzo
+        except ValueError:
+            QMessageBox.warning(self.ui, "Dato non valido", "Inserisci un prezzo mensile valido (> 0).")
+            return
+
+        # 3) duplicati (robusto)
+        conn = get_connection()
+        cur = conn.cursor()
+        nome_n = self._norm(dati["nome"])
+
+        cur.execute(
+            "SELECT 1 FROM servizi WHERE lower(trim(nome)) = ? LIMIT 1",
+            (nome_n,)
+        )
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Servizio esistente", "Esiste già un servizio con lo stesso nome.")
+            return
 
         try:
             Servizio.create(dati)
@@ -85,7 +126,7 @@ class ServiziSection:
         dati_correnti = {
             "nome": table.item(row, 1).text(),
             "descrizione": table.item(row, 2).text(),
-            "prezzo_orario": table.item(row, 3).text().replace(",", "."),
+            "prezzo_mensile": table.item(row, 3).text().replace(",", "."),
         }
 
         dialog = ServizioDialog(parent=None, servizio=dati_correnti)
@@ -94,9 +135,46 @@ class ServiziSection:
 
         nuovi_dati = dialog.get_dati()
 
+        nuovi_dati["nome"] = " ".join(nuovi_dati["nome"].strip().split())
+
+        # 1) obbligatorio
+        if not nuovi_dati["nome"]:
+            QMessageBox.warning(self.ui, "Dati mancanti", "Il nome del servizio è obbligatorio.")
+            return
+
+        # 2) prezzo valido
+        if not nuovi_dati.get("prezzo_mensile"):
+            QMessageBox.warning(self.ui, "Dati mancanti", "Il prezzo mensile è obbligatorio.")
+            return
+
+        try:
+            prezzo = float(str(nuovi_dati["prezzo_mensile"]).replace(",", "."))
+            if prezzo <= 0:
+                raise ValueError
+            nuovi_dati["prezzo_mensile"] = prezzo
+        except ValueError:
+            QMessageBox.warning(self.ui, "Dato non valido", "Inserisci un prezzo mensile valido (> 0).")
+            return
+
+        # 3) duplicati (escludo me stesso)
+        conn = get_connection()
+        cur = conn.cursor()
+        nome_n = self._norm(nuovi_dati["nome"])
+
+        cur.execute(
+            "SELECT 1 FROM servizi WHERE lower(trim(nome)) = ? AND id != ? LIMIT 1",
+            (nome_n, servizio_id)
+        )
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Servizio esistente", "Esiste già un servizio con lo stesso nome.")
+            return
+
         try:
             Servizio.update(servizio_id, nuovi_dati)
             self.load_servizi()
+            if hasattr(self.ui, "interventi_section"):
+                self.ui.interventi_section.load_interventi()
+
         except Exception as e:
             import traceback
             traceback.print_exc()
@@ -111,6 +189,23 @@ class ServiziSection:
             return
 
         servizio_id = int(table.item(row, 0).text())
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        # blocco se associato a interventi
+        cur.execute("SELECT 1 FROM interventi WHERE servizio_id = ? LIMIT 1", (servizio_id,))
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Impossibile eliminare",
+                                "Non puoi eliminare il servizio perché è associato ad almeno un intervento.")
+            return
+
+        # blocco se associato a ricorrenti
+        cur.execute("SELECT 1 FROM interventi_ricorrenti WHERE servizio_id = ? LIMIT 1", (servizio_id,))
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Impossibile eliminare",
+                                "Non puoi eliminare il servizio perché è associato ad almeno un intervento ricorrente.")
+            return
 
         risposta = QMessageBox.question(
             self.ui,

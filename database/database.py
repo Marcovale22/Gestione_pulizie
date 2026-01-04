@@ -1,7 +1,6 @@
 import os
 import sqlite3
 
-# Percorso del file .db (database/gestione.db)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DB_PATH = os.path.join(BASE_DIR, "database", "gestione.db")
 
@@ -9,20 +8,32 @@ _connection = None
 
 
 def get_connection():
-    """Ritorna una connessione singleton al DB SQLite."""
     global _connection
     if _connection is None:
         _connection = sqlite3.connect(DB_PATH)
-        _connection.row_factory = sqlite3.Row   # per avere dizionari
+        _connection.row_factory = sqlite3.Row
+        _connection.execute("PRAGMA foreign_keys = ON;")  # IMPORTANTISSIMO in SQLite
     return _connection
 
 
+def reset_db():
+    """Cancella fisicamente il file DB e lo ricrea pulito."""
+    global _connection
+    if _connection is not None:
+        _connection.close()
+        _connection = None
+
+    if os.path.exists(DB_PATH):
+        os.remove(DB_PATH)
+
+    init_db()
+
+
 def init_db():
-    """Crea le tabelle se non esistono."""
     conn = get_connection()
     cur = conn.cursor()
 
-    # --- Tabella CLIENTI ---
+    # --- CLIENTI ---
     cur.execute("""
         CREATE TABLE IF NOT EXISTS clienti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +45,7 @@ def init_db():
         );
     """)
 
-    # --- Tabella DIPENDENTI ---
+    # --- DIPENDENTI ---
     cur.execute("""
         CREATE TABLE IF NOT EXISTS dipendenti (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -49,59 +60,36 @@ def init_db():
         );
     """)
 
-    # --- Tabella SERVIZI ---
+    # --- SERVIZI ---
+    # "prezzo_orario" -> sostituito con "prezzo_mensile"
+    # campi extra utili: durata_default_ore, attivo
     cur.execute("""
         CREATE TABLE IF NOT EXISTS servizi (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             nome TEXT NOT NULL,
             descrizione TEXT,
-            prezzo_orario REAL
+            prezzo_mensile REAL,
+            durata_default_ore REAL,
+            attivo INTEGER NOT NULL DEFAULT 1
         );
     """)
 
-    # --- Tabella INTERVENTI ---
+    # --- INTERVENTI (istanze reali) ---
+    # NIENTE dipendente_id qui: la relazione è N-N su interventi_dipendenti
     cur.execute("""
         CREATE TABLE IF NOT EXISTS interventi (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             cliente_id INTEGER NOT NULL,
             servizio_id INTEGER NOT NULL,
-            dipendente_id INTEGER,                 -- può essere NULL
-            data TEXT NOT NULL,                    -- 'YYYY-MM-DD'
-            ora_inizio TEXT NOT NULL,              -- 'HH:MM'
-            durata_ore REAL,                       -- es: 1.5
-            stato TEXT NOT NULL DEFAULT 'Programmato',
-            note TEXT
-        );
-    """)
-
-    # --- aggiunta colonna ricorrente_id se manca (SQLite safe) ---
-    cur.execute("PRAGMA table_info(interventi);")
-    cols = [row["name"] for row in cur.fetchall()]
-    if "ricorrente_id" not in cols:
-        cur.execute("ALTER TABLE interventi ADD COLUMN ricorrente_id INTEGER;")
-
-    # --- Tabella INTERVENTI_RICORRENTI ---
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS interventi_ricorrenti (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente_id INTEGER NOT NULL,
-            servizio_id INTEGER NOT NULL,
-            ora_inizio TEXT NOT NULL,
+            data TEXT NOT NULL,        -- YYYY-MM-DD
+            ora_inizio TEXT NOT NULL,  -- HH:MM
             durata_ore REAL,
-            attivo INTEGER NOT NULL DEFAULT 1,
+            stato TEXT NOT NULL DEFAULT 'Programmato',
             note TEXT,
-            FOREIGN KEY (cliente_id) REFERENCES clienti(id),
-            FOREIGN KEY (servizio_id) REFERENCES servizi(id)
-        );
-    """)
-
-    # --- Tabella giorni ricorrenti ---
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS interventi_ricorrenti_giorni (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ricorrente_id INTEGER NOT NULL,
-            giorno_settimana INTEGER NOT NULL,
-            FOREIGN KEY (ricorrente_id) REFERENCES interventi_ricorrenti(id) ON DELETE CASCADE
+            ricorrente_id INTEGER,
+            FOREIGN KEY (cliente_id) REFERENCES clienti(id) ON DELETE RESTRICT,
+            FOREIGN KEY (servizio_id) REFERENCES servizi(id) ON DELETE RESTRICT,
+            FOREIGN KEY (ricorrente_id) REFERENCES interventi_ricorrenti(id) ON DELETE SET NULL
         );
     """)
 
@@ -116,6 +104,33 @@ def init_db():
         );
     """)
 
+    # --- INTERVENTI RICORRENTI (modello) ---
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS interventi_ricorrenti (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente_id INTEGER NOT NULL,
+            servizio_id INTEGER NOT NULL,
+            ora_inizio TEXT NOT NULL,
+            durata_ore REAL,
+            data_inizio TEXT,   -- YYYY-MM-DD (opzionale)
+            data_fine TEXT,     -- YYYY-MM-DD (opzionale)
+            attivo INTEGER NOT NULL DEFAULT 1,
+            note TEXT,
+            FOREIGN KEY (cliente_id) REFERENCES clienti(id) ON DELETE RESTRICT,
+            FOREIGN KEY (servizio_id) REFERENCES servizi(id) ON DELETE RESTRICT
+        );
+    """)
+
+    # --- Giorni della settimana per ricorrenti (0=Lun ... 6=Dom oppure come preferisci) ---
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS interventi_ricorrenti_giorni (
+            ricorrente_id INTEGER NOT NULL,
+            giorno_settimana INTEGER NOT NULL,
+            PRIMARY KEY (ricorrente_id, giorno_settimana),
+            FOREIGN KEY (ricorrente_id) REFERENCES interventi_ricorrenti(id) ON DELETE CASCADE
+        );
+    """)
+
     # --- N-N dipendenti su ricorrenti ---
     cur.execute("""
         CREATE TABLE IF NOT EXISTS ricorrenti_dipendenti (
@@ -127,16 +142,9 @@ def init_db():
         );
     """)
 
-    # --- aggiunta colonne data_inizio / data_fine (MIGRAZIONE SICURA) ---
-    cur.execute("PRAGMA table_info(interventi_ricorrenti);")
-    cols = [row[1] for row in cur.fetchall()]
-
-    if "data_inizio" not in cols:
-        cur.execute("ALTER TABLE interventi_ricorrenti ADD COLUMN data_inizio TEXT;")
-
-    if "data_fine" not in cols:
-        cur.execute("ALTER TABLE interventi_ricorrenti ADD COLUMN data_fine TEXT;")
+    # --- Indici utili (velocizzano calendario/ricerche) ---
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_interventi_data ON interventi(data);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_interventi_cliente ON interventi(cliente_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_interventi_servizio ON interventi(servizio_id);")
 
     conn.commit()
-
-

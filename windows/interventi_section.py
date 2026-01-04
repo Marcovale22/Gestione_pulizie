@@ -52,6 +52,7 @@ class InterventiSection:
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table.setShowGrid(True)
         table.setWordWrap(False)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
 
         table.setStyleSheet(self.ui.tableClienti.styleSheet())
 
@@ -232,6 +233,26 @@ class InterventiSection:
 
             nuovi_dati = dialog.get_dati()
 
+            dati = dialog.get_dati()
+
+            if not dati["cliente_id"] or not dati["servizio_id"]:
+                QMessageBox.warning(self.ui, "Dati mancanti", "Cliente e servizio sono obbligatori.")
+                return
+
+            if not dati["data"] or not dati["ora_inizio"]:
+                QMessageBox.warning(self.ui, "Dati mancanti", "Data e ora sono obbligatori.")
+                return
+
+            try:
+                durata = float(str(dati["durata_ore"]).replace(",", "."))
+                if durata <= 0:
+                    raise ValueError
+                dati["durata_ore"] = durata
+            except:
+                QMessageBox.warning(self.ui, "Dato non valido", "Durata ore deve essere un numero > 0.")
+                return
+
+
             try:
                 update_intervento(intervento_id, nuovi_dati)
                 self.load_interventi()
@@ -266,6 +287,25 @@ class InterventiSection:
                 return
 
             nuovi = dialog.get_dati()
+
+            dati = dialog.get_dati()
+
+            if not dati["cliente_id"] or not dati["servizio_id"]:
+                QMessageBox.warning(self.ui, "Dati mancanti", "Cliente e servizio sono obbligatori.")
+                return
+
+            if not dati["data"] or not dati["ora_inizio"]:
+                QMessageBox.warning(self.ui, "Dati mancanti", "Data e ora sono obbligatori.")
+                return
+
+            try:
+                durata = float(str(dati["durata_ore"]).replace(",", "."))
+                if durata <= 0:
+                    raise ValueError
+                dati["durata_ore"] = durata
+            except:
+                QMessageBox.warning(self.ui, "Dato non valido", "Durata ore deve essere un numero > 0.")
+                return
 
             try:
                 update_ricorrente(ricorrente_id, nuovi)

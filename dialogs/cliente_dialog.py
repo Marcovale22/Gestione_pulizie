@@ -1,12 +1,12 @@
-
 from PyQt6.QtWidgets import (
     QDialog,
     QVBoxLayout,
     QFormLayout,
     QLineEdit,
     QDialogButtonBox,
+    QMessageBox,
+    QLabel
 )
-
 
 class ClienteDialog(QDialog):
     def __init__(self, parent=None, cliente=None):
@@ -14,7 +14,6 @@ class ClienteDialog(QDialog):
 
         self.setWindowTitle("Cliente")
 
-        # ---- campi ----
         self.edit_nome = QLineEdit()
         self.edit_cognome = QLineEdit()
         self.edit_telefono = QLineEdit()
@@ -22,32 +21,46 @@ class ClienteDialog(QDialog):
         self.edit_email = QLineEdit()
 
         form = QFormLayout()
-        form.addRow("Nome:", self.edit_nome)
-        form.addRow("Cognome:", self.edit_cognome)
+
+        # ✅ asterischi sui campi obbligatori
+        form.addRow("Nome <font color='red'>*</font>:", self.edit_nome)
+        form.addRow("Cognome <font color='red'>*</font>:", self.edit_cognome)
         form.addRow("Telefono:", self.edit_telefono)
         form.addRow("Indirizzo:", self.edit_indirizzo)
         form.addRow("Email:", self.edit_email)
 
-        # ---- pulsanti OK / Annulla ----
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok
-            | QDialogButtonBox.StandardButton.Cancel
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok |
+            QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
+
+        self.buttons.button(QDialogButtonBox.StandardButton.Ok).clicked.connect(self.on_ok)
+        self.buttons.rejected.connect(self.reject)
+
+        # ✅ legenda in fondo
+        lbl_obbl = QLabel("<font color='red'>*</font> Campo obbligatorio")
+        lbl_obbl.setStyleSheet("font-size: 11px;")
 
         layout = QVBoxLayout()
         layout.addLayout(form)
-        layout.addWidget(buttons)
-
+        layout.addWidget(lbl_obbl)
+        layout.addWidget(self.buttons)
         self.setLayout(layout)
 
-        # se passo un cliente, precompilo i campi
         if cliente is not None:
             self.set_dati(cliente)
 
+    def on_ok(self):
+        nome = self.edit_nome.text().strip()
+        cognome = self.edit_cognome.text().strip()
+
+        if not nome or not cognome:
+            QMessageBox.warning(self, "Dati mancanti", "Nome e cognome sono obbligatori.")
+            return
+
+        super().accept()
+
     def set_dati(self, cliente: dict):
-        """cliente è un dict con le chiavi: nome, cognome, telefono, indirizzo, email"""
         self.edit_nome.setText(cliente.get("nome", ""))
         self.edit_cognome.setText(cliente.get("cognome", ""))
         self.edit_telefono.setText(cliente.get("telefono", ""))
@@ -55,7 +68,6 @@ class ClienteDialog(QDialog):
         self.edit_email.setText(cliente.get("email", ""))
 
     def get_dati(self) -> dict:
-        """Ritorna i dati inseriti nella dialog."""
         return {
             "nome": self.edit_nome.text().strip(),
             "cognome": self.edit_cognome.text().strip(),

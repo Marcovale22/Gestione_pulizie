@@ -51,6 +51,8 @@ class ClientiSection:
         table.setVerticalScrollMode(table.ScrollMode.ScrollPerPixel)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+
     # ---------------------------------------------------------
     #  SIGNALS
     # ---------------------------------------------------------
@@ -92,8 +94,12 @@ class ClientiSection:
     # ---------------------------------------------------------
     #  AGGIUNGI CLIENTE
     # ---------------------------------------------------------
+
+    def _norm(self, s: str) -> str:
+        # toglie spazi extra e rende case-insensitive (più robusto di lower)
+        return " ".join(s.strip().split()).casefold()
+
     def aggiungi_cliente(self):
-        # parent=None va benissimo, è la cosa più sicura
         dialog = ClienteDialog(parent=None)
         result = dialog.exec()
 
@@ -102,8 +108,31 @@ class ClientiSection:
 
         dati = dialog.get_dati()
 
+        # --- Normalizzo ---
+        dati["nome"] = " ".join(dati["nome"].strip().split())
+        dati["cognome"] = " ".join(dati["cognome"].strip().split())
+
+        # --- 1) CONTROLLI OBBLIGATORI ---
+        if not dati["nome"] or not dati["cognome"]:
+            QMessageBox.warning(self.ui, "Dati mancanti", "Nome e cognome sono obbligatori.")
+            return
+
         conn = get_connection()
         cur = conn.cursor()
+
+        # --- 2) CONTROLLO DUPLICATI (robusto) ---
+        nome_n = self._norm(dati["nome"])
+        cognome_n = self._norm(dati["cognome"])
+
+        cur.execute(
+            "SELECT 1 FROM clienti WHERE lower(trim(nome)) = ? AND lower(trim(cognome)) = ?",
+            (nome_n, cognome_n)
+        )
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Cliente esistente", "Esiste già un cliente con lo stesso nome e cognome.")
+            return
+
+        # --- 3) INSERT ---
         cur.execute("""
             INSERT INTO clienti (nome, cognome, telefono, indirizzo, email)
             VALUES (?, ?, ?, ?, ?)
@@ -114,23 +143,15 @@ class ClientiSection:
             dati["indirizzo"],
             dati["email"],
         ))
-        conn.commit()   # niente conn.close()
-
+        conn.commit()
         self.load_clienti()
 
-    # ---------------------------------------------------------
-    #  MODIFICA CLIENTE
-    # ---------------------------------------------------------
     def modifica_cliente(self):
         table = self.ui.tableClienti
         row = table.currentRow()
 
         if row < 0:
-            QMessageBox.warning(
-                None,
-                "Modifica cliente",
-                "Seleziona prima un cliente da modificare."
-            )
+            QMessageBox.warning(self.ui, "Modifica cliente", "Seleziona prima un cliente da modificare.")
             return
 
         cliente_id = int(table.item(row, 0).text())
@@ -147,12 +168,35 @@ class ClientiSection:
         result = dialog.exec()
 
         if result != dialog.DialogCode.Accepted:
-            return  # l'utente ha annullato
+            return
 
         nuovi_dati = dialog.get_dati()
 
+        # --- Normalizzo ---
+        nuovi_dati["nome"] = " ".join(nuovi_dati["nome"].strip().split())
+        nuovi_dati["cognome"] = " ".join(nuovi_dati["cognome"].strip().split())
+
+        # --- 1) obbligatori ---
+        if not nuovi_dati["nome"] or not nuovi_dati["cognome"]:
+            QMessageBox.warning(self.ui, "Dati mancanti", "Nome e cognome sono obbligatori.")
+            return
+
         conn = get_connection()
         cur = conn.cursor()
+
+        # --- 2) duplicati (robusto + escludo me stesso) ---
+        nome_n = self._norm(nuovi_dati["nome"])
+        cognome_n = self._norm(nuovi_dati["cognome"])
+
+        cur.execute(
+            "SELECT 1 FROM clienti WHERE lower(trim(nome)) = ? AND lower(trim(cognome)) = ? AND id != ?",
+            (nome_n, cognome_n, cliente_id)
+        )
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Cliente esistente", "Esiste già un cliente con lo stesso nome e cognome.")
+            return
+
+        # --- 3) update ---
         cur.execute("""
             UPDATE clienti
             SET nome = ?, cognome = ?, telefono = ?, indirizzo = ?, email = ?
@@ -166,8 +210,9 @@ class ClientiSection:
             cliente_id
         ))
         conn.commit()
-
         self.load_clienti()
+        if hasattr(self.ui, "interventi_section"):
+            self.ui.interventi_section.load_interventi()
 
     # ---------------------------------------------------------
     #  ELIMINA CLIENTE
@@ -177,17 +222,29 @@ class ClientiSection:
         row = table.currentRow()
 
         if row < 0:
-            QMessageBox.warning(
-                None,
-                "Elimina cliente",
-                "Seleziona prima un cliente da eliminare."
-            )
+            QMessageBox.warning(self.ui, "Elimina cliente", "Seleziona prima un cliente da eliminare.")
             return
 
         cliente_id = int(table.item(row, 0).text())
 
+        conn = get_connection()
+        cur = conn.cursor()
+
+        # blocco se associato
+        cur.execute("SELECT 1 FROM interventi WHERE cliente_id = ? LIMIT 1", (cliente_id,))
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Impossibile eliminare",
+                                "Non puoi eliminare il cliente perché è associato ad almeno un intervento.")
+            return
+
+        cur.execute("SELECT 1 FROM interventi_ricorrenti WHERE cliente_id = ? LIMIT 1", (cliente_id,))
+        if cur.fetchone():
+            QMessageBox.warning(self.ui, "Impossibile eliminare",
+                                "Non puoi eliminare il cliente perché è associato ad almeno un intervento ricorrente.")
+            return
+
         risposta = QMessageBox.question(
-            None,
+            self.ui,
             "Conferma eliminazione",
             "Sei sicuro di voler eliminare questo cliente?",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
@@ -196,12 +253,8 @@ class ClientiSection:
         if risposta != QMessageBox.StandardButton.Yes:
             return
 
-        conn = get_connection()
-        cur = conn.cursor()
         cur.execute("DELETE FROM clienti WHERE id = ?", (cliente_id,))
         conn.commit()
-
-        print(f"Cliente ID {cliente_id} eliminato")
         self.load_clienti()
 
     # ---------------------------------------------------------

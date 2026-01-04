@@ -13,7 +13,6 @@ class Cliente:
     telefono: str | None = None
     indirizzo: str | None = None
     email: str | None = None
-    note: str | None = None
 
     # ---------- CRUD ----------
 
@@ -31,7 +30,6 @@ class Cliente:
                 telefono=row["telefono"],
                 indirizzo=row["indirizzo"],
                 email=row["email"],
-                note=row["note"],
             )
             for row in rows
         ]
@@ -39,19 +37,19 @@ class Cliente:
     @staticmethod
     def create(nome: str, cognome: str,
                telefono: str = "", indirizzo: str = "",
-               email: str = "", note: str = "") -> "Cliente":
+               email: str = "") -> "Cliente":
         conn = get_connection()
         cur = conn.cursor()
         cur.execute(
             """
-            INSERT INTO clienti (nome, cognome, telefono, indirizzo, email, note)
+            INSERT INTO clienti (nome, cognome, telefono, indirizzo, email)
             VALUES (?, ?, ?, ?, ?, ?)
             """,
-            (nome, cognome, telefono, indirizzo, email, note),
+            (nome, cognome, telefono, indirizzo, email),
         )
         conn.commit()
         new_id = cur.lastrowid
-        return Cliente(new_id, nome, cognome, telefono, indirizzo, email, note)
+        return Cliente(new_id, nome, cognome, telefono, indirizzo, email)
 
     @staticmethod
     def get(client_id: int) -> Optional["Cliente"]:
@@ -68,7 +66,6 @@ class Cliente:
             telefono=row["telefono"],
             indirizzo=row["indirizzo"],
             email=row["email"],
-            note=row["note"],
         )
 
     def update(self):
@@ -79,11 +76,11 @@ class Cliente:
         cur.execute(
             """
             UPDATE clienti
-            SET nome = ?, cognome = ?, telefono = ?, indirizzo = ?, email = ?, note = ?
+            SET nome = ?, cognome = ?, telefono = ?, indirizzo = ?, email = ?
             WHERE id = ?
             """,
             (self.nome, self.cognome, self.telefono,
-             self.indirizzo, self.email, self.note, self.id),
+             self.indirizzo, self.email, self.id),
         )
         conn.commit()
 

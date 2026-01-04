@@ -2,18 +2,18 @@ from database.database import get_connection
 
 
 class Servizio:
-    def __init__(self, id, nome, descrizione, prezzo_orario):
+    def __init__(self, id, nome, descrizione, prezzo_mensile):
         self.id = id
         self.nome = nome
         self.descrizione = descrizione
-        self.prezzo_orario = prezzo_orario
+        self.prezzo_mensile = prezzo_mensile
 
     @staticmethod
     def all():
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("""
-            SELECT id, nome, descrizione, prezzo_orario
+            SELECT id, nome, descrizione, prezzo_mensile
             FROM servizi
             ORDER BY nome
         """)
@@ -25,7 +25,7 @@ class Servizio:
                 id=r["id"],
                 nome=r["nome"],
                 descrizione=r["descrizione"],
-                prezzo_orario=r["prezzo_orario"],
+                prezzo_mensile=r["prezzo_mensile"],
             ))
         return servizi
 
@@ -34,12 +34,12 @@ class Servizio:
         conn = get_connection()
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO servizi (nome, descrizione, prezzo_orario)
+            INSERT INTO servizi (nome, descrizione, prezzo_mensile)
             VALUES (?, ?, ?)
         """, (
             dati["nome"],
             dati.get("descrizione"),
-            dati.get("prezzo_orario"),
+            dati.get("prezzo_mensile"),
         ))
         conn.commit()
         return cur.lastrowid
@@ -50,12 +50,12 @@ class Servizio:
         cur = conn.cursor()
         cur.execute("""
             UPDATE servizi
-            SET nome = ?, descrizione = ?, prezzo_orario = ?
+            SET nome = ?, descrizione = ?, prezzo_mensile = ?
             WHERE id = ?
         """, (
             dati["nome"],
             dati.get("descrizione"),
-            dati.get("prezzo_orario"),
+            dati.get("prezzo_mensile"),
             servizio_id
         ))
         conn.commit()
