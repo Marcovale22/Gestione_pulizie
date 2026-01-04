@@ -1,8 +1,7 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QComboBox,
-    QTimeEdit, QDoubleSpinBox, QLineEdit, QDialogButtonBox,
-    QMessageBox, QListWidget, QListWidgetItem, QAbstractItemView,
-    QCheckBox, QSpinBox
+    QTimeEdit, QDoubleSpinBox, QDialogButtonBox, QMessageBox,
+    QListWidget, QListWidgetItem, QAbstractItemView, QCheckBox, QWidget, QHBoxLayout
 )
 from PyQt6.QtCore import QTime, Qt
 
@@ -11,52 +10,52 @@ from models.dipendenti import Dipendente
 from models.servizi import Servizio
 
 
-GIORNI = [
-    (1, "Lun"), (2, "Mar"), (3, "Mer"), (4, "Gio"), (5, "Ven"), (6, "Sab"), (7, "Dom")
-]
-
-
 class RicorrenteDialog(QDialog):
     def __init__(self, parent=None, ricorrente=None):
         super().__init__(parent)
         self._dati = None
 
+        self.setWindowTitle("Ricorrente")
+
+        # --- campi ---
         self.comboCliente = QComboBox()
         self.comboServizio = QComboBox()
-
-        self.timeOra = QTimeEdit()
-        self.timeOra.setTime(QTime.currentTime())
-
-        self.spinDurata = QDoubleSpinBox()
-        self.spinDurata.setRange(0, 24)
-        self.spinDurata.setDecimals(2)
-
-        self.editNote = QLineEdit()
-
-        self.chkAttivo = QCheckBox("Attivo")
-        self.chkAttivo.setChecked(True)
-
-        self.listGiorni = QListWidget()
-        self.listGiorni.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
 
         self.listDipendenti = QListWidget()
         self.listDipendenti.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
 
-        self.spinGenera = QSpinBox()
-        self.spinGenera.setRange(0, 52)     # 0 = non generare
-        self.spinGenera.setValue(0)
+        self.timeOra = QTimeEdit()
+        self.timeOra.setTime(QTime.currentTime())
 
-        self._load()
+        self.timeDurata = QTimeEdit()
+        self.timeDurata.setDisplayFormat("HH:mm")
+        self.timeDurata.setTime(QTime(0, 0))  # durata iniziale
+
+        self.chkAttivo = QCheckBox("Attivo")
+        self.chkAttivo.setChecked(True)
+
+        # Giorni settimana (checkbox)
+        self.chk = {}
+        giorni = [("Lun", 1), ("Mar", 2), ("Mer", 3), ("Gio", 4), ("Ven", 5), ("Sab", 6), ("Dom", 7)]
+        giorni_widget = QWidget()
+        giorni_layout = QHBoxLayout(giorni_widget)
+        giorni_layout.setContentsMargins(0, 0, 0, 0)
+        for label, val in giorni:
+            c = QCheckBox(label)
+            self.chk[val] = c
+            giorni_layout.addWidget(c)
+
+        # popolo da DB
+        self._load_combo()
 
         form = QFormLayout()
         form.addRow("Cliente:", self.comboCliente)
         form.addRow("Servizio:", self.comboServizio)
-        form.addRow("Ora inizio:", self.timeOra)
-        form.addRow("Durata (ore):", self.spinDurata)
-        form.addRow("Giorni:", self.listGiorni)
         form.addRow("Dipendenti:", self.listDipendenti)
-        form.addRow("", self.chkAttivo)
-        form.addRow("Note:", self.editNote)
+        form.addRow("Giorni:", giorni_widget)
+        form.addRow("Ora inizio:", self.timeOra)
+        form.addRow("Durata:", self.timeDurata)   # ✅ label pulita
+        form.addRow("Stato:", self.chkAttivo)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
@@ -76,30 +75,23 @@ class RicorrenteDialog(QDialog):
         else:
             self.setWindowTitle("Aggiungi ricorrente")
 
-    def _load(self):
-        # clienti
+    def _load_combo(self):
+        # Clienti
         self.comboCliente.clear()
         for c in Cliente.all():
             self.comboCliente.addItem(f"{c.cognome} {c.nome}", c.id)
 
-        # servizi
+        # Servizi
         self.comboServizio.clear()
         for s in Servizio.all():
             self.comboServizio.addItem(s.nome, s.id)
 
-        # giorni
-        self.listGiorni.clear()
-        for g_id, g_name in GIORNI:
-            item = QListWidgetItem(g_name)
-            item.setData(Qt.ItemDataRole.UserRole, g_id)
-            self.listGiorni.addItem(item)
-
-        # dipendenti
+        # Dipendenti
         self.listDipendenti.clear()
         for d in Dipendente.all():
-            item = QListWidgetItem(f"{d.cognome} {d.nome}")
-            item.setData(Qt.ItemDataRole.UserRole, d.id)
-            self.listDipendenti.addItem(item)
+            it = QListWidgetItem(f"{d.cognome} {d.nome}")
+            it.setData(Qt.ItemDataRole.UserRole, d.id)
+            self.listDipendenti.addItem(it)
 
     def _select_by_data(self, combo: QComboBox, value):
         for i in range(combo.count()):
@@ -107,42 +99,41 @@ class RicorrenteDialog(QDialog):
                 combo.setCurrentIndex(i)
                 return
 
-    def set_dati(self, x: dict):
-        self._select_by_data(self.comboCliente, x.get("cliente_id"))
-        self._select_by_data(self.comboServizio, x.get("servizio_id"))
+    def set_dati(self, r: dict):
+        self._select_by_data(self.comboCliente, r.get("cliente_id"))
+        self._select_by_data(self.comboServizio, r.get("servizio_id"))
 
         # ora
         try:
-            hh, mm = map(int, x.get("ora_inizio", "09:00").split(":"))
+            hh, mm = map(int, (r.get("ora_inizio") or "09:00").split(":"))
             self.timeOra.setTime(QTime(hh, mm))
         except:
             pass
 
         # durata
         try:
-            self.spinDurata.setValue(float(x.get("durata_ore") or 0))
+            ore = float(r.get("durata_ore") or 0.0)
+            total_min = int(round(ore * 60))
+            h = total_min // 60
+            m = total_min % 60
+            self.timeDurata.setTime(QTime(h, m))
         except:
-            self.spinDurata.setValue(0)
+            self.timeDurata.setTime(QTime(0, 0))
 
-        self.editNote.setText(x.get("note", "") or "")
-        self.chkAttivo.setChecked(bool(x.get("attivo", 1)))
+        # attivo
+        self.chkAttivo.setChecked(bool(r.get("attivo", 1)))
 
-        # giorni selezionati
-        giorni = set(x.get("giorni_settimana", []))
-        for i in range(self.listGiorni.count()):
-            item = self.listGiorni.item(i)
-            g = item.data(Qt.ItemDataRole.UserRole)
-            item.setSelected(g in giorni)
+        # giorni
+        giorni = set(r.get("giorni_settimana") or [])
+        for val, cb in self.chk.items():
+            cb.setChecked(val in giorni)
 
         # dipendenti selezionati
-        dip_ids = set(x.get("dipendente_ids", []))
+        ids = set(r.get("dipendente_ids") or [])
         for i in range(self.listDipendenti.count()):
             item = self.listDipendenti.item(i)
             did = item.data(Qt.ItemDataRole.UserRole)
-            item.setSelected(did in dip_ids)
-
-        # su modifica, di default non rigenero a meno che lo scegli tu
-        self.spinGenera.setValue(0)
+            item.setSelected(did in ids)
 
     def _on_accept(self):
         if self.comboCliente.count() == 0:
@@ -151,23 +142,32 @@ class RicorrenteDialog(QDialog):
         if self.comboServizio.count() == 0:
             QMessageBox.warning(self, "Dati mancanti", "Inserisci prima almeno un servizio.")
             return
-        if len(self.listGiorni.selectedItems()) == 0:
+
+        # giorni obbligatori (almeno 1)
+        giorni_sel = [val for val, cb in self.chk.items() if cb.isChecked()]
+        if not giorni_sel:
             QMessageBox.warning(self, "Dati mancanti", "Seleziona almeno un giorno della settimana.")
             return
 
-        giorni = [it.data(Qt.ItemDataRole.UserRole) for it in self.listGiorni.selectedItems()]
-        dip_ids = [it.data(Qt.ItemDataRole.UserRole) for it in self.listDipendenti.selectedItems()]
+        t = self.timeDurata.time()
+        durata = (t.hour() * 60 + t.minute()) / 60.0
+
+        if durata <= 0:
+            QMessageBox.warning(self, "Dati mancanti", "La durata è obbligatoria (es. 00:30).")
+            return
+
+        dip_ids = [item.data(Qt.ItemDataRole.UserRole) for item in self.listDipendenti.selectedItems()]
 
         self._dati = {
             "cliente_id": self.comboCliente.currentData(),
             "servizio_id": self.comboServizio.currentData(),
             "ora_inizio": self.timeOra.time().toString("HH:mm"),
-            "durata_ore": float(self.spinDurata.value()) if self.spinDurata.value() > 0 else None,
-            "note": self.editNote.text().strip() or None,
-            "attivo": self.chkAttivo.isChecked(),
-            "giorni_settimana": giorni,
-            "dipendente_ids": dip_ids,
+            "durata_ore": durata,
+            "attivo": 1 if self.chkAttivo.isChecked() else 0,
+            "giorni_settimana": giorni_sel,
+            "dipendente_ids": dip_ids
         }
+
         self.accept()
 
     def get_dati(self) -> dict:

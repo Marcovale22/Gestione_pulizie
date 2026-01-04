@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QFormLayout, QComboBox,
-    QDateEdit, QTimeEdit, QDoubleSpinBox, QLineEdit,
+    QDateEdit, QTimeEdit, QDoubleSpinBox,
     QDialogButtonBox, QMessageBox, QListWidget, QListWidgetItem, QAbstractItemView
 )
 from PyQt6.QtCore import QDate, QTime, Qt
@@ -8,8 +8,6 @@ from PyQt6.QtCore import QDate, QTime, Qt
 from models.cliente import Cliente
 from models.dipendenti import Dipendente
 from models.servizi import Servizio
-
-
 
 
 class InterventoDialog(QDialog):
@@ -34,12 +32,11 @@ class InterventoDialog(QDialog):
 
         self.timeOra = QTimeEdit()
         self.timeOra.setTime(QTime.currentTime())
+        self.timeOra.setDisplayFormat("HH:mm")
 
-        self.spinDurata = QDoubleSpinBox()
-        self.spinDurata.setRange(0, 24)
-        self.spinDurata.setDecimals(2)
-
-        self.editNote = QLineEdit()
+        self.timeDurata = QTimeEdit()
+        self.timeDurata.setDisplayFormat("HH:mm")
+        self.timeDurata.setTime(QTime(0, 0))
 
         # popolamento combo da DB
         self._load_combo()
@@ -50,9 +47,8 @@ class InterventoDialog(QDialog):
         form.addRow("Dipendenti:", self.listDipendenti)
         form.addRow("Data:", self.dateData)
         form.addRow("Ora inizio:", self.timeOra)
-        form.addRow("Durata (ore):", self.spinDurata)
+        form.addRow("Durata:", self.timeDurata)
         form.addRow("Stato:", self.comboStato)
-        form.addRow("Note:", self.editNote)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok |
@@ -101,10 +97,8 @@ class InterventoDialog(QDialog):
                 return
 
     def set_dati(self, x: dict):
-        # x contiene id (cliente_id, servizio_id, dipendente_id, ...)
         self._select_by_data(self.comboCliente, x.get("cliente_id"))
         self._select_by_data(self.comboServizio, x.get("servizio_id"))
-
 
         # data/ora
         try:
@@ -121,17 +115,15 @@ class InterventoDialog(QDialog):
 
         # durata
         try:
-            self.spinDurata.setValue(float(x.get("durata_ore") or 0))
+            self.timeDurata.setTime(InterventoDialog.ore_to_qtime(x.get("durata_ore") or 0.0))
         except:
-            self.spinDurata.setValue(0)
+            self.timeDurata.setTime(QTime(0, 0))
 
         # stato
         stato = x.get("stato", "Programmato")
         idx = self.comboStato.findText(stato)
         if idx >= 0:
             self.comboStato.setCurrentIndex(idx)
-
-        self.editNote.setText(x.get("note", "") or "")
 
         ids = x.get("dipendente_ids")
         if ids is None:
@@ -153,19 +145,22 @@ class InterventoDialog(QDialog):
             QMessageBox.warning(self, "Dati mancanti", "Inserisci prima almeno un servizio.")
             return
 
-        dip_ids = []
-        for item in self.listDipendenti.selectedItems():
-            dip_ids.append(item.data(Qt.ItemDataRole.UserRole))
+        dip_ids = [item.data(Qt.ItemDataRole.UserRole) for item in self.listDipendenti.selectedItems()]
 
+        durata_q = self.timeDurata.time()
+        durata = InterventoDialog.qtime_to_ore(durata_q)
+
+        if durata <= 0:
+            QMessageBox.warning(self, "Dati mancanti", "La durata è obbligatoria (es. 00:30).")
+            return
 
         self._dati = {
             "cliente_id": self.comboCliente.currentData(),
             "servizio_id": self.comboServizio.currentData(),
             "data": self.dateData.date().toString("yyyy-MM-dd"),
             "ora_inizio": self.timeOra.time().toString("HH:mm"),
-            "durata_ore": float(self.spinDurata.value()) if self.spinDurata.value() > 0 else None,
+            "durata_ore": durata,
             "stato": self.comboStato.currentText(),
-            "note": self.editNote.text().strip() or None,
             "dipendente_ids": dip_ids
         }
 
@@ -173,3 +168,17 @@ class InterventoDialog(QDialog):
 
     def get_dati(self) -> dict:
         return self._dati
+
+    @staticmethod
+    def ore_to_qtime(ore: float) -> QTime:
+        if ore is None:
+            ore = 0.0
+        total_min = int(round(float(ore) * 60))
+        h = total_min // 60
+        m = total_min % 60
+        return QTime(h, m)
+
+    @staticmethod
+    def qtime_to_ore(t: QTime) -> float:
+        return (t.hour() * 60 + t.minute()) / 60.0
+

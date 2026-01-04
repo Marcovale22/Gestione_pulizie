@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QHeaderView, QAbstractItemView, QTableWidgetItem, QMessageBox
 from datetime import datetime, date
 
+
 from dialogs.intervento_dialog import InterventoDialog
 from database.repositories.interventi_repo import (
     get_interventi_misti,
@@ -76,7 +77,7 @@ class InterventiSection:
         nums = sorted({int(p) for p in parts if p.isdigit() and int(p) in GIORNI_MAP})
         return ", ".join(GIORNI_MAP[n] for n in nums) if nums else "-"
 
-    from datetime import datetime, date
+
 
     def format_data(self, value) -> str:
         if value is None:
@@ -97,6 +98,18 @@ class InterventiSection:
             return datetime.strptime(s, "%Y-%m-%d").strftime("%d-%m-%Y")
         except ValueError:
             return str(value)  # fallback
+
+    def format_durata_hhmm(self, durata_ore) -> str:
+        if durata_ore is None or str(durata_ore).strip() in ("", "-"):
+            return "-"
+
+        try:
+            total_min = int(round(float(durata_ore) * 60))
+            h = total_min // 60
+            m = total_min % 60
+            return f"{h:02d}:{m:02d}"
+        except:
+            return "-"
 
     def format_periodo(self, periodo: str) -> str:
         if not periodo:
@@ -139,7 +152,7 @@ class InterventiSection:
                 row["dipendenti"],
                 data_fmt,
                 row["ora"],
-                row["durata"],
+                self.format_durata_hhmm(row["durata"]),
                 giorni,
                 row["stato"],
                 periodo_fmt,
@@ -233,25 +246,22 @@ class InterventiSection:
 
             nuovi_dati = dialog.get_dati()
 
-            dati = dialog.get_dati()
-
-            if not dati["cliente_id"] or not dati["servizio_id"]:
+            if not nuovi_dati["cliente_id"] or not nuovi_dati["servizio_id"]:
                 QMessageBox.warning(self.ui, "Dati mancanti", "Cliente e servizio sono obbligatori.")
                 return
 
-            if not dati["data"] or not dati["ora_inizio"]:
+            if not nuovi_dati["data"] or not nuovi_dati["ora_inizio"]:
                 QMessageBox.warning(self.ui, "Dati mancanti", "Data e ora sono obbligatori.")
                 return
 
             try:
-                durata = float(str(dati["durata_ore"]).replace(",", "."))
+                durata = float(str(nuovi_dati["durata_ore"]).replace(",", "."))
                 if durata <= 0:
                     raise ValueError
-                dati["durata_ore"] = durata
+                nuovi_dati["durata_ore"] = durata
             except:
                 QMessageBox.warning(self.ui, "Dato non valido", "Durata ore deve essere un numero > 0.")
                 return
-
 
             try:
                 update_intervento(intervento_id, nuovi_dati)
@@ -261,6 +271,7 @@ class InterventiSection:
                 traceback.print_exc()
                 QMessageBox.critical(self.ui, "Errore", f"Errore durante la modifica dell'intervento:\n{e}")
             return
+
 
         # --- CASO 2: RICORRENTE ---
         elif tipo == "RICORRENTE":
@@ -288,21 +299,25 @@ class InterventiSection:
 
             nuovi = dialog.get_dati()
 
-            dati = dialog.get_dati()
-
-            if not dati["cliente_id"] or not dati["servizio_id"]:
+            if not nuovi["cliente_id"] or not nuovi["servizio_id"]:
                 QMessageBox.warning(self.ui, "Dati mancanti", "Cliente e servizio sono obbligatori.")
                 return
 
-            if not dati["data"] or not dati["ora_inizio"]:
-                QMessageBox.warning(self.ui, "Dati mancanti", "Data e ora sono obbligatori.")
+            # ricorrente: serve ora_inizio
+            if not nuovi.get("ora_inizio"):
+                QMessageBox.warning(self.ui, "Dati mancanti", "Ora inizio è obbligatoria.")
+                return
+
+            # ricorrente: serve almeno 1 giorno
+            if not nuovi.get("giorni_settimana"):
+                QMessageBox.warning(self.ui, "Dati mancanti", "Seleziona almeno un giorno della settimana.")
                 return
 
             try:
-                durata = float(str(dati["durata_ore"]).replace(",", "."))
+                durata = float(str(nuovi["durata_ore"]).replace(",", "."))
                 if durata <= 0:
                     raise ValueError
-                dati["durata_ore"] = durata
+                nuovi["durata_ore"] = durata
             except:
                 QMessageBox.warning(self.ui, "Dato non valido", "Durata ore deve essere un numero > 0.")
                 return
