@@ -18,12 +18,12 @@ class ServizioDialog(QDialog):
 
         form = QFormLayout()
 
-        # ✅ asterisco sui campi obbligatori
+        # asterisco sui campi obbligatori
         form.addRow("Nome <font color='red'>*</font>:", self.edit_nome)
         form.addRow("Descrizione:", self.edit_descrizione)
         form.addRow("Prezzo mensile (€) <font color='red'>*</font>:", self.double_prezzo)
 
-        # ✅ legenda in fondo
+        #  legenda in fondo
         lbl_obbl = QLabel("<font color='red'>*</font> Campo obbligatorio")
         lbl_obbl.setStyleSheet("font-size: 11px;")
 
@@ -36,7 +36,7 @@ class ServizioDialog(QDialog):
 
         layout = QVBoxLayout()
         layout.addLayout(form)
-        layout.addWidget(lbl_obbl)   # ✅ sotto il form
+        layout.addWidget(lbl_obbl)   # sotto il form
         layout.addWidget(buttons)
         self.setLayout(layout)
 

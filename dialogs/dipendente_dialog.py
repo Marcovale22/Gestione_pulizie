@@ -33,7 +33,7 @@ class DipendenteDialog(QDialog):
         # ---- Layout form ----
         form = QFormLayout()
 
-        # ✅ asterischi sui campi obbligatori
+        #  asterischi sui campi obbligatori
         form.addRow("Nome <font color='red'>*</font>:", self.edit_nome)
         form.addRow("Cognome <font color='red'>*</font>:", self.edit_cognome)
         form.addRow("Telefono:", self.edit_telefono)
@@ -43,7 +43,7 @@ class DipendenteDialog(QDialog):
         form.addRow("Stipendio (€) <font color='red'>*</font>:", self.double_stipendio)
         form.addRow("Scadenza contratto <font color='red'>*</font>:", self.date_scadenza)
 
-        # ✅ legenda in fondo
+        #  legenda in fondo
         lbl_obbl = QLabel("<font color='red'>*</font> Campo obbligatorio")
         lbl_obbl.setStyleSheet("font-size: 11px;")
 
@@ -68,9 +68,8 @@ class DipendenteDialog(QDialog):
         else:
             self.setWindowTitle("Aggiungi dipendente")
 
-    # ------------------------------------------------------------------
-    # Carico i dati nel dialog (per MODIFICA)
-    # ------------------------------------------------------------------
+
+    # Carico i dati nel dialog
     def set_dati(self, d: dict):
         self.edit_nome.setText(d.get("nome", ""))
         self.edit_cognome.setText(d.get("cognome", ""))
@@ -96,9 +95,9 @@ class DipendenteDialog(QDialog):
             except:
                 pass
 
-    # ------------------------------------------------------------------
-    # VALIDAZIONE E RACCOLTA DATI
-    # ------------------------------------------------------------------
+
+    # VALIDAZIONE
+
     def _on_accept(self):
         nome = self.edit_nome.text().strip()
         cognome = self.edit_cognome.text().strip()

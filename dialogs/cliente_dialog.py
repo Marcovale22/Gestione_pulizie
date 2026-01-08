@@ -22,7 +22,7 @@ class ClienteDialog(QDialog):
 
         form = QFormLayout()
 
-        # ✅ asterischi sui campi obbligatori
+        #  asterischi sui campi obbligatori
         form.addRow("Nome <font color='red'>*</font>:", self.edit_nome)
         form.addRow("Cognome <font color='red'>*</font>:", self.edit_cognome)
         form.addRow("Telefono:", self.edit_telefono)
@@ -37,7 +37,7 @@ class ClienteDialog(QDialog):
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).clicked.connect(self.on_ok)
         self.buttons.rejected.connect(self.reject)
 
-        # ✅ legenda in fondo
+        # legenda in fondo
         lbl_obbl = QLabel("<font color='red'>*</font> Campo obbligatorio")
         lbl_obbl.setStyleSheet("font-size: 11px;")
 

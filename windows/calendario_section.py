@@ -162,17 +162,6 @@ class CalendarioSection(QObject):
         for qd, evs in self.events_by_date.items():
             evs.sort(key=lambda e: (e.get("ora") or ""))
 
-   # def mark_days_with_events(self):
-    #    cal = self.ui.tableGiorno
-#
- #       fmt_event = QTextCharFormat()
-  #      fmt_event.setBackground(QColor("#FEF3C7"))  # giallino leggero
-   #     fmt_event.setForeground(QColor("#111827"))
-    #    fmt_event.setFontWeight(600)
-
-     #   for d, evs in getattr(self, "events_by_date", {}).items():
-    #if evs:
-     #           cal.setDateTextFormat(d, fmt_event)
 
     def date_from_cell(self, row: int, col: int) -> QDate:
         cal = self.ui.tableGiorno
@@ -221,8 +210,6 @@ class CalendarioSection(QObject):
 
         return False
 
-    # def on_month_changed(self, year: int, month: int):
-    #    self.refresh_calendar_formats()
 
     def refresh_calendar_formats(self):
         cal = self.ui.tableGiorno
@@ -406,7 +393,7 @@ class CalendarioSection(QObject):
     def setup_signals(self):
         self.ui.tableGiorno.clicked.connect(self.open_day_details)
         self.ui.btnGiornoBack.clicked.connect(self.back_to_calendar)
-        self.ui.tableWidget.itemSelectionChanged.connect(self.on_selection_changed)
+
 
     # ---------------- NAVIGAZIONE ----------------
     def open_day_details(self, qdate: QDate):
@@ -450,15 +437,5 @@ class CalendarioSection(QObject):
 
         table.clearSelection()
 
-    def on_selection_changed(self):
-        ha_sel = self.ui.tableWidget.currentRow() >= 0
 
-    # placeholder
-    def aggiungi(self):
-        QMessageBox.information(self.ui, "Calendario", "TODO: aggiungi (singolo/ricorrente)")
 
-    def modifica(self):
-        QMessageBox.information(self.ui, "Calendario", "TODO: modifica selezionato")
-
-    def elimina(self):
-        QMessageBox.information(self.ui, "Calendario", "TODO: elimina selezionato")

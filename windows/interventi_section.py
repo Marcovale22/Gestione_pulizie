@@ -60,7 +60,7 @@ class InterventiSection:
         table.setColumnWidth(2, 200)  # Cliente
         table.setColumnWidth(3, 160)  # Servizio
         table.setColumnWidth(4, 220)  # Dipendenti
-        table.setColumnWidth(10, 220)  # Periodo (se è la colonna 10)
+        table.setColumnWidth(10, 220)  # Periodo
     def setup_signals(self):
         self.ui.btnInterventiAggiungi.clicked.connect(self.aggiungi_intervento)
         self.ui.btnInterventiModifica.clicked.connect(self.modifica_intervento)

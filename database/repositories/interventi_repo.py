@@ -117,7 +117,7 @@ def create_intervento(dati: dict) -> int:
     conn.commit()
 
     # link dipendenti
-    set_intervento_dipendenti(interventoo_id := intervento_id, dip_ids)
+    set_intervento_dipendenti(intervento_id, dip_ids)
 
     return intervento_id
 

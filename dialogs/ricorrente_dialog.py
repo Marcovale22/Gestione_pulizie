@@ -54,7 +54,7 @@ class RicorrenteDialog(QDialog):
         form.addRow("Dipendenti:", self.listDipendenti)
         form.addRow("Giorni:", giorni_widget)
         form.addRow("Ora inizio:", self.timeOra)
-        form.addRow("Durata:", self.timeDurata)   # ✅ label pulita
+        form.addRow("Durata:", self.timeDurata)
         form.addRow("Stato:", self.chkAttivo)
 
         buttons = QDialogButtonBox(
@@ -143,7 +143,7 @@ class RicorrenteDialog(QDialog):
             QMessageBox.warning(self, "Dati mancanti", "Inserisci prima almeno un servizio.")
             return
 
-        # giorni obbligatori (almeno 1)
+        # giorni obbligatori almeno
         giorni_sel = [val for val, cb in self.chk.items() if cb.isChecked()]
         if not giorni_sel:
             QMessageBox.warning(self, "Dati mancanti", "Seleziona almeno un giorno della settimana.")
